@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard Gerencial — Trilhas</title>
+<style>
+  :root{--bg:#0f172a;--panel:#0b1222;--card:#0d1b2a;--muted:#9fb1c6;--txt:#e5e7eb;--ok:#22c55e;--bad:#ef4444}
+  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.42 system-ui,Segoe UI,Roboto}
+  header{padding:14px 18px;border-bottom:1px solid #1f2b3a;background:#0f172a;display:flex;gap:16px;align-items:end;flex-wrap:wrap}
+  .ctrl{display:flex;flex-direction:column;gap:6px}
+  .row{display:flex;align-items:center;gap:8px}
+  select,input[type=file],button{height:36px;background:#0b1222;color:#d6e2f4;border:1px solid #1e293b;border-radius:10px;padding:0 10px;cursor:pointer}
+  input[type=checkbox]{transform:scale(1.1);cursor:pointer}
+  button{background:#0f192c}
+  main{padding:16px 18px;display:grid;gap:14px}
+  .tabs{display:flex;gap:8px;margin-top:8px}
+  .tab{padding:8px 12px;border:1px solid #1e293b;border-radius:10px;background:#0b1222;color:#cdd8e6;cursor:pointer}
+  .tab.active{outline:2px solid #3b82f6;background:#0f192c}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .panel{background:var(--panel);border:1px solid #1e293b;border-radius:14px;padding:12px}
+  .card{background:var(--card);border:1px solid #1e293b;border-radius:14px;padding:12px}
+  .kpis{display:grid;grid-template-columns:repeat(5,minmax(160px,1fr));gap:10px}
+  .card h3{margin:0 0 4px;color:#bcd0e6;font-size:12px}
+  .card p{margin:0;font-size:20px}
+  .delta{font-size:11px;margin-top:6px;color:#cbd5e1}
+  .delta.pos{color:var(--ok)} .delta.neg{color:var(--bad)}
+  .chartwrap{height:260px}
+  .table{overflow:auto;border-radius:10px;border:1px solid #1e293b}
+  table{width:100%;border-collapse:collapse;background:#0b1222}
+  th,td{padding:8px 10px;border-bottom:1px solid #132238;white-space:nowrap}
+  th{background:#0f192c;position:sticky;top:0;text-align:left}
+  .hidden{display:none}
+  .search{display:flex;gap:8px;margin:8px 0}
+  .search input{flex:1;height:36px;background:#0b1222;color:#d6e2f4;border:1px solid #1e293b;border-radius:10px;padding:0 10px}
+  .insights{display:grid;grid-template-columns:1fr;gap:8px}
+  .insight-item{background:#0b1222;border:1px solid #1e293b;border-radius:10px;padding:10px}
+  .pill{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:11px;background:#0f192c;color:#cbd5e1;border:1px solid #1e293b}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header>
+  <div style="font-weight:700">Dashboard Gerencial — Trilhas</div>
+
+  <div class="ctrl"><span>Trilha</span><select id="selTrilha"></select></div>
+
+  <div class="ctrl">
+    <span>Mês</span>
+    <div class="row">
+      <select id="selMes"></select>
+      <label class="row" style="gap:6px">
+        <input type="checkbox" id="chkAcum">
+        <span>Acumular até o mês</span>
+      </label>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="tabs">
+    <div id="tabOverview" class="tab active">Visão Geral</div>
+    <div id="tabAlunos" class="tab">Alunos</div>
+  </div>
+
+  <!-- ====== OVERVIEW ====== -->
+  <div id="viewOverview">
+    <section class="panel">
+      <h2>KPIs</h2>
+      <div class="kpis">
+        <div class="card"><h3>Alunos ativos (snapshot ≤ mês)</h3><p id="k_ativos">–</p><div id="d_ativos" class="delta">–</div></div>
+        <div class="card"><h3>Progresso médio (entre quem iniciou)</h3><p id="k_prog">–</p><div id="d_prog" class="delta">–</div></div>
+        <div class="card"><h3>Conclusões (no mês)</h3><p id="k_conc">–</p><div id="d_conc" class="delta">–</div></div>
+        <div class="card"><h3>Pontos (no mês)</h3><p id="k_pts">–</p><div id="d_pts" class="delta">–</div></div>
+        <div class="card"><h3>Mês</h3><p id="k_mes">–</p></div>
+      </div>
+    </section>
+
+    <section class="grid2">
+      <div class="panel"><h2 id="ttl_prog">Progresso médio — mês selecionado</h2><div class="chartwrap"><canvas id="c_prog"></canvas></div></div>
+      <div class="panel"><h2 id="ttl_pts">Pontos — mês a mês</h2><div class="chartwrap"><canvas id="c_pts"></canvas></div></div>
+    </section>
+
+    <section class="panel">
+      <h2>Top cursos — visão geral (acumulado)</h2>
+      <div id="t_top" class="table"></div>
+    </section>
+
+    <!-- ====== INSIGHTS ====== -->
+    <section class="panel">
+      <h2>Insights automáticos</h2>
+      <div id="insights" class="insights"></div>
+    </section>
+  </div>
+
+  <!-- ====== ALUNOS ====== -->
+  <div id="viewAlunos" class="hidden">
+    <section class="panel">
+      <h2>Alunos — conforme filtros (Trilha + Mês)</h2>
+      <div class="search">
+        <input id="qAluno" placeholder="Filtrar por aluno ou curso..." />
+      </div>
+      <div>
+        <h3>Matrículas e progresso por curso</h3>
+        <div id="t_alunos" class="table"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+/* ========= estado ========= */
+let DATA = null;
+let charts = { prog:null, pts:null };
+const $ = s => document.querySelector(s);
+const T_ALL = "(Todas as trilhas)";
+
+/* ========= utilitários ========= */
+function renderTable(sel, rows, cols){
+  const box = $(sel);
+  if(!rows?.length){ box.innerHTML = '<div style="padding:10px;color:#9fb1c6">Sem dados.</div>'; return; }
+  const thead = `<thead><tr>${cols.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>`;
+  const tbody = `<tbody>${rows.map(r=>`<tr>${
+      cols.map(c=>{
+        let v = r[c.key];
+        if (v == null || (typeof v === "number" && Number.isNaN(v))) v = 0;
+        const txt = c.fmt?c.fmt(v, r):(v);
+        return `<td>${txt}</td>`;
+      }).join('')
+    }</tr>`).join('')}</tbody>`;
+  box.innerHTML = `<table>${thead}${tbody}</table>`;
+}
+
+function lineNoLimit(id, labels, data, label){
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx,{
+    type:'line',
+    data:{labels, datasets:[{label,data,tension:.25}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{boxWidth:12}}}}
+  });
+}
+
+function barProgressSnapshot(id, labels, data){
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx,{
+    type:'bar',
+    data:{labels, datasets:[{label:'Progresso médio (%)', data}]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ beginAtZero:true, max:100, title:{display:true,text:'Progresso médio (%)'} } },
+      plugins:{ legend:{ display:false } }
+    }
+  });
+}
+
+function prefixSum(arr){ let s=0; return arr.map(v=> s += (Number(v)||0)); }
+function setDelta(elId, curr, prev){
+  const el = document.getElementById(elId);
+  if(prev == null){ el.textContent = "–"; el.className = "delta"; return; }
+  const d = ((curr - prev)/Math.max(prev,1))*100;
+  el.textContent = `${d>0?'+':''}${d.toFixed(1)}% vs mês anterior`;
+  el.className = "delta " + (d>0 ? "pos" : d<0 ? "neg" : "");
+}
+function fmtPctAllowText(v){
+  if (typeof v === "string") return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? `${n.toFixed(1)}%` : "–";
+}
+
+/* ========= preenchimento de selects ========= */
+function populateSelectors(){
+  const t = $("#selTrilha"), m = $("#selMes");
+  t.innerHTML = `<option>${T_ALL}</option>`;
+  Object.keys(DATA.trilhas).forEach(tr=>{
+    const o = document.createElement("option"); o.value=tr; o.textContent=tr; t.appendChild(o);
+  });
+  m.innerHTML = DATA.meses.map(mm=>`<option>${mm}</option>`).join("");
+  t.value = T_ALL;
+  m.value = DATA.meses.at(-1) || "";
+}
+
+/* ========= KPIs helper ========= */
+function kpisFromSeries(ser, idx, acum=false){
+  const prog = ser.progMed[idx] ?? 0;
+  const atv  = (ser.ativos ? ser.ativos[idx] : 0) ?? 0;
+  if(!acum){
+    return { prog, atv, pts: ser.pontos[idx] ?? 0, conc: ser.conclusoes[idx] ?? 0 };
+  } else {
+    const pts  = ser.pontos.slice(0, idx+1).reduce((a,b)=>a+(Number(b)||0),0);
+    const conc = ser.conclusoes.slice(0, idx+1).reduce((a,b)=>a+(Number(b)||0),0);
+    return { prog, atv, pts, conc };
+  }
+}
+
+/* ========= abas ========= */
+function activateTab(id){
+  ["tabOverview","tabAlunos"].forEach(t=> $("#"+t).classList.toggle("active", t===id));
+  $("#viewOverview").classList.toggle("hidden", id!=="tabOverview");
+  $("#viewAlunos").classList.toggle("hidden", id!=="tabAlunos");
+}
+
+/* ========= INSIGHTS ========= */
+function makeInsightItem(html){
+  const div = document.createElement("div");
+  div.className = "insight-item";
+  div.innerHTML = html;
+  return div;
+}
+
+function renderInsights(){
+  const box = $("#insights");
+  box.innerHTML = "";
+
+  const tr = $("#selTrilha").value;
+  const mm = $("#selMes").value;
+
+  // séries do escopo selecionado
+  let ser = (tr===T_ALL) ? DATA.overall : (DATA.trilhas[tr]?.series || null);
+  if(!ser){ box.appendChild(makeInsightItem("Sem dados para o contexto atual.")); return; }
+
+  const i = ser.meses.indexOf(mm);
+  const prev = i>0 ? i-1 : null;
+  const progNow  = (i>=0 ? (ser.progMed[i] ?? 0) : 0);
+  const progPrev = (prev!=null ? (ser.progMed[prev] ?? null) : null);
+  const delta = (progPrev==null) ? null : (progNow - progPrev);
+
+  // 1) Tendência de progresso
+  const t1 = `
+    <b>Tendência de progresso</b><span class="pill">${mm}</span><br>
+    Progresso médio ${progPrev==null ? "no período" : "vs mês anterior"}:
+    <b>${progNow.toFixed(1)}%</b>
+    ${delta==null ? "" : (delta>0 ? `(<span style="color:var(--ok)">+${delta.toFixed(1)} p.p.</span>)` :
+                                   delta<0 ? `(<span style="color:var(--bad)">${delta.toFixed(1)} p.p.</span>)` :
+                                             "(estável)")}.
+    ${tr===T_ALL ? "Visão consolidada entre trilhas." : `Trilha: <b>${tr}</b>.`}
+  `;
+  box.appendChild(makeInsightItem(t1));
+
+  // 2) Top/Bottom cursos do mês (a partir de DATA.students[mm])
+  const stud = DATA.students?.[mm] || [];
+  const rows = stud.filter(r => tr===T_ALL ? true : r.trilha===tr)
+                   .filter(r => r.curso && r.curso !== "Pontos Manuais");
+
+  const byCourse = {};
+  for(const r of rows){
+    if(!byCourse[r.curso]) byCourse[r.curso] = {sum:0, n:0};
+    if(Number.isFinite(Number(r.progresso))){
+      byCourse[r.curso].sum += Number(r.progresso)||0;
+      byCourse[r.curso].n   += 1;
+    }
+  }
+  const courseAvg = Object.entries(byCourse).map(([curso, v]) => ({
+    curso, avg: v.n ? (v.sum/v.n) : 0
+  })).sort((a,b)=> b.avg - a.avg);
+
+  if(courseAvg.length){
+    const top3 = courseAvg.slice(0, Math.min(3, courseAvg.length));
+    const bot3 = courseAvg.slice(-Math.min(3, courseAvg.length)).reverse();
+    const fmtList = arr => arr.map(o=>`<li>${o.curso} — <b>${o.avg.toFixed(1)}%</b></li>`).join("");
+
+    const t2 = `
+      <b>Destaques por curso no mês</b><span class="pill">${mm}</span>${tr===T_ALL?"":"<span class='pill'>"+tr+"</span>"}<br>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px">
+        <div>
+          <div style="opacity:.85;margin-bottom:4px">Top 3 progressos médios</div>
+          <ul style="margin:0 0 0 18px">${fmtList(top3)}</ul>
+        </div>
+        <div>
+          <div style="opacity:.85;margin-bottom:4px">3 menores progressos médios</div>
+          <ul style="margin:0 0 0 18px">${fmtList(bot3)}</ul>
+        </div>
+      </div>
+    `;
+    box.appendChild(makeInsightItem(t2));
+  }else{
+    box.appendChild(makeInsightItem(`<b>Destaques por curso</b><span class="pill">${mm}</span><br>Sem matrículas/progressos registrados no contexto atual.`));
+  }
+
+  // 3) Pontos manuais no mês
+  const man = DATA.manuals?.[mm] || [];
+  const manualUsers = new Set(man.map(x=>x.aluno));
+  const manualPts = man.reduce((a,b)=> a + (Number(b.pontos_manua_mes)||0), 0);
+  const t3 = `
+    <b>Pontos manuais</b><span class="pill">${mm}</span><br>
+    Alunos impactados: <b>${manualUsers.size}</b> — Pontos manuais no mês: <b>${manualPts.toLocaleString("pt-BR")}</b>.
+    ${manualUsers.size>0 ? "Sugestão: verifique se foram lançados para reforço ou correção pontual." : "Sem lançamentos manuais no período."}
+  `;
+  box.appendChild(makeInsightItem(t3));
+
+  // 4) Possíveis inconsistências (progresso > 0 e pontos = 0)
+  const inconsist = rows.filter(r => (Number(r.progresso)>0) && (Number(r.pontos_mes||0)===0));
+  const inconsistCount = inconsist.length;
+  const t4 = `
+    <b>Checagem de consistência</b><span class="pill">${mm}</span><br>
+    Registros com <b>progresso &gt; 0</b> e <b>pontos não manuais = 0</b>: <b>${inconsistCount}</b>.
+    ${inconsistCount>0 ? "Isso pode ocorrer por instabilidades ou por regras de pontuação não aplicadas a todos os eventos. Recomenda-se uma revisão." : "Sem sinais de inconsistência neste recorte."}
+  `;
+  box.appendChild(makeInsightItem(t4));
+}
+
+/* ========= RENDER ========= */
+function render(){
+  const tr = $("#selTrilha").value;
+  const mm = $("#selMes").value;
+  const acum = $("#chkAcum").checked;
+
+  // series + top cursos
+  let ser = null, top = [];
+  if (tr === T_ALL){
+    ser = DATA.overall;
+    top = DATA.overall_top_cursos || [];
+  } else {
+    ser = DATA.trilhas[tr]?.series || {meses:[],progMed:[],pontos:[],conclusoes:[],ativos:[]};
+    top = DATA.trilhas[tr]?.top_cursos_global || [];
+  }
+
+  const i = ser.meses.indexOf(mm), prev = i>0 ? i-1 : null;
+
+  // KPIs
+  const k = kpisFromSeries(ser, i, acum);
+  $("#k_mes").textContent   = mm || "–";
+  $("#k_prog").textContent  = `${(k.prog||0).toFixed(1)}%`;
+  $("#k_pts").textContent   = (k.pts||0).toLocaleString("pt-BR");
+  $("#k_conc").textContent  = (k.conc||0).toLocaleString("pt-BR");
+  $("#k_ativos").textContent= (k.atv||0).toLocaleString("pt-BR");
+
+  const prevK = (prev!=null) ? kpisFromSeries(ser, prev, acum) : null;
+  setDelta("d_prog", k.prog, prev!=null? ser.progMed[prev]:null);
+  setDelta("d_pts",  k.pts,  prevK ? prevK.pts : null);
+  setDelta("d_conc", k.conc, prevK ? prevK.conc : null);
+  setDelta("d_ativos", k.atv, prev!=null? (ser.ativos?ser.ativos[prev]:null):null);
+
+  // Charts
+  charts.prog?.destroy?.(); charts.pts?.destroy?.();
+  // Progresso (snapshot do mês selecionado)
+  if(tr === T_ALL){
+    const trilhas = Object.keys(DATA.trilhas);
+    const vals = trilhas.map(t => {
+      const s = DATA.trilhas[t].series;
+      const idx = s.meses.indexOf(mm);
+      return (idx>=0 ? (s.progMed[idx]||0) : 0);
+    });
+    charts.prog = barProgressSnapshot("c_prog", trilhas, vals);
+    $("#ttl_prog").textContent = "Progresso médio — mês selecionado (por trilha)";
+  } else {
+    const val = (i>=0 ? (ser.progMed[i]||0) : 0);
+    charts.prog = barProgressSnapshot("c_prog", [tr], [val]);
+    $("#ttl_prog").textContent = "Progresso médio — mês selecionado";
+  }
+  // Pontos (linha; mês a mês ou acumulado)
+  charts.pts = lineNoLimit("c_pts", ser.meses, acum ? prefixSum(ser.pontos) : ser.pontos, "Pontos");
+  $("#ttl_pts").textContent = acum ? "Pontos — mês a mês (acumulado)" : "Pontos — mês a mês";
+
+  // Top cursos
+  renderTable("#t_top", top, [
+    {key:"curso",             label:"Curso"},
+    {key:"alunos_liberados",  label:"Alunos (com acesso)",                    fmt:v=> (Number(v)||0).toLocaleString("pt-BR")},
+    {key:"progresso_medio",   label:"Progresso Médio (entre quem iniciou)",   fmt:v=> fmtPctAllowText(v)},
+    {key:"pontos_total",      label:"Pontos (não manuais)",                   fmt:v=> (Number(v)||0).toLocaleString("pt-BR")},
+  ]);
+
+  // Insights
+  renderInsights();
+
+  // Alunos
+  renderAlunos();
+}
+
+function renderAlunos(){
+  const tr = $("#selTrilha").value;
+  const mm = $("#selMes").value;
+  const q = ($("#qAluno").value || "").toLowerCase().trim();
+
+  // NÃO manuais por aluno-curso (do mês selecionado)
+  const all = DATA.students?.[mm] || [];
+  let rows = all
+    .filter(r => tr===T_ALL ? true : r.trilha===tr)
+    .filter(r => !q || (String(r.aluno).toLowerCase().includes(q) || String(r.curso).toLowerCase().includes(q)));
+
+  // Pontos manuais agregados por aluno (mês)
+  const man = DATA.manuals?.[mm] || [];
+  const manByAluno = {};
+  for(const r of man){ manByAluno[r.aluno] = (manByAluno[r.aluno] || 0) + (Number(r.pontos_manua_mes) || 0); }
+  for(const [aluno, pts] of Object.entries(manByAluno)){
+    if(pts <= 0) continue;
+    if(q && !String(aluno).toLowerCase().includes(q)) continue;
+    rows.push({
+      aluno,
+      trilha: "Não se aplica",
+      curso: "Pontos Manuais",
+      progresso: "Não se aplica",
+      pontos_mes: Number(pts) || 0
+    });
+  }
+
+  rows.sort((a,b)=>{
+    const an = String(a.aluno).localeCompare(String(b.aluno));
+    if(an!==0) return an;
+    return String(a.curso).localeCompare(String(b.curso));
+  });
+
+  renderTable("#t_alunos", rows, [
+    {key:"aluno",     label:"Aluno"},
+    {key:"trilha",    label:"Trilha"},
+    {key:"curso",     label:"Curso"},
+    {key:"progresso", label:"Progresso do aluno no curso", fmt:(v,r)=> r.curso==="Pontos Manuais" ? "Não se aplica" : `${(Number(v)||0).toFixed(1)}%`},
+    {key:"pontos_mes",label:"Pontos do mês (não manuais)", fmt:v=> (Number(v)||0).toLocaleString("pt-BR")}
+  ]);
+}
+
+/* ========= wiring ========= */
+function wireTabs(){
+  $("#tabOverview").addEventListener("click", ()=> activateTab("tabOverview"));
+  $("#tabAlunos").addEventListener("click", ()=> activateTab("tabAlunos"));
+  $("#qAluno")?.addEventListener("input", renderAlunos);
+}
+function wireFilters(){
+  ["selTrilha","selMes","chkAcum"].forEach(id=> $("#"+id).addEventListener("change", render));
+}
+
+/* ========= boot ========= */
+async function loadJSON(){
+  const res = await fetch("./data_trilhas.json",{cache:"no-store"});
+  if(!res.ok) throw new Error("Falha ao baixar JSON");
+  const data = await res.json();
+  DATA = data;
+  populateSelectors();
+  wireTabs();
+  wireFilters();
+  render();
+}
+document.addEventListener("DOMContentLoaded", ()=> {
+  loadJSON().catch(e=> alert("Falha ao carregar JSON: " + e.message));
+});
+</script>
+</body>
+</html>
