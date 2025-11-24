@@ -20,7 +20,8 @@
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .panel{background:var(--panel);border:1px solid #1e293b;border-radius:14px;padding:12px}
   .card{background:var(--card);border:1px solid #1e293b;border-radius:14px;padding:12px}
-  .kpis{display:grid;grid-template-columns:repeat(5,minmax(160px,1fr));gap:10px}
+  /* agora temos 6 cards de KPI */
+  .kpis{display:grid;grid-template-columns:repeat(6,minmax(160px,1fr));gap:10px}
   .card h3{margin:0 0 4px;color:#bcd0e6;font-size:12px}
   .card p{margin:0;font-size:20px}
   .delta{font-size:11px;margin-top:6px;color:#cbd5e1}
@@ -33,6 +34,8 @@
   .hidden{display:none}
   .search{display:flex;gap:8px;margin:8px 0}
   .search input{flex:1;height:36px;background:#0b1222;color:#d6e2f4;border:1px solid #1e293b;border-radius:10px;padding:0 10px}
+
+  /* Insights */
   .insights{display:grid;grid-template-columns:1fr;gap:8px}
   .insight-item{background:#0b1222;border:1px solid #1e293b;border-radius:10px;padding:10px}
   .pill{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:11px;background:#0f192c;color:#cbd5e1;border:1px solid #1e293b}
@@ -74,10 +77,12 @@
     <section class="panel">
       <h2>KPIs</h2>
       <div class="kpis">
-        <div class="card"><h3>Alunos ativos (snapshot ≤ mês)</h3><p id="k_ativos">–</p><div id="d_ativos" class="delta">–</div></div>
+        <div class="card"><h3>Alunos ativos (no mês — progresso ou pontos)</h3>  <p id="k_ativos">–</p> <div id="d_ativos" class="delta">–</div></div>
         <div class="card"><h3>Progresso médio (entre quem iniciou)</h3><p id="k_prog">–</p><div id="d_prog" class="delta">–</div></div>
         <div class="card"><h3>Conclusões (no mês)</h3><p id="k_conc">–</p><div id="d_conc" class="delta">–</div></div>
         <div class="card"><h3>Pontos (no mês)</h3><p id="k_pts">–</p><div id="d_pts" class="delta">–</div></div>
+        <!-- NOVO: nota média -->
+        <div class="card"><h3>Nota média (quem fez prova)</h3><p id="k_nota">–</p><div id="d_nota" class="delta">–</div></div>
         <div class="card"><h3>Mês</h3><p id="k_mes">–</p></div>
       </div>
     </section>
@@ -138,7 +143,10 @@ const T_ALL = "(Todas as trilhas)";
 /* ========= utilitários ========= */
 function renderTable(sel, rows, cols){
   const box = $(sel);
-  if(!rows?.length){ box.innerHTML = '<div style="padding:10px;color:#9fb1c6">Sem dados.</div>'; return; }
+  if(!rows?.length){
+    box.innerHTML = '<div style="padding:10px;color:#9fb1c6">Sem dados.</div>';
+    return;
+  }
   const thead = `<thead><tr>${cols.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>`;
   const tbody = `<tbody>${rows.map(r=>`<tr>${
       cols.map(c=>{
@@ -152,25 +160,64 @@ function renderTable(sel, rows, cols){
 }
 function lineNoLimit(id, labels, data, label){
   const ctx = document.getElementById(id).getContext('2d');
-  return new Chart(ctx,{ type:'line', data:{labels, datasets:[{label,data,tension:.25}]},
-    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{boxWidth:12}}}}});
+  return new Chart(ctx,{
+    type:'line',
+    data:{labels, datasets:[{label,data,tension:.25}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{boxWidth:12}}}}
+  });
 }
 function barProgressSnapshot(id, labels, data){
   const ctx = document.getElementById(id).getContext('2d');
-  return new Chart(ctx,{ type:'bar', data:{labels, datasets:[{label:'Progresso médio (%)', data}]},
-    options:{ responsive:true, maintainAspectRatio:false,
+  return new Chart(ctx,{
+    type:'bar',
+    data:{labels, datasets:[{label:'Progresso médio (%)', data}]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
       scales:{ y:{ beginAtZero:true, max:100, title:{display:true,text:'Progresso médio (%)'} } },
-      plugins:{ legend:{ display:false } } }});
+      plugins:{ legend:{ display:false } }
+    }
+  });
 }
-function prefixSum(arr){ let s=0; return arr.map(v=> s += (Number(v)||0)); }
+function prefixSum(arr){
+  let s=0; return arr.map(v=> s + (Number(v)||0));
+}
+
 function setDelta(elId, curr, prev){
   const el = document.getElementById(elId);
-  if(prev == null){ el.textContent = "–"; el.className = "delta"; return; }
-  const d = ((curr - prev)/Math.max(prev,1))*100;
-  el.textContent = `${d>0?'+':''}${d.toFixed(1)}% vs mês anterior`;
-  el.className = "delta " + (d>0 ? "pos" : d<0 ? "neg" : "");
+
+  // se não tiver valor anterior ou atual válido, não mostra variação
+  if (prev == null || !Number.isFinite(curr) || !Number.isFinite(prev)) {
+    el.textContent = "–";
+    el.className = "delta";
+    return;
+  }
+
+  // variação percentual vs mês anterior
+  const d = ((curr - prev) / (Math.abs(prev) > 0 ? Math.abs(prev) : 1)) * 100;
+
+  el.textContent = `${d > 0 ? '+' : ''}${d.toFixed(1)}% vs mês anterior`;
+  el.className = "delta " + (d > 0 ? "pos" : d < 0 ? "neg" : "");
 }
-function fmtPctAllowText(v){ if (typeof v === "string") return v; const n = Number(v); return Number.isFinite(n) ? `${n.toFixed(1)}%` : "–"; }
+
+
+/* delta específico para nota (pontos, não %) */
+function setDeltaNota(elId, curr, prev){
+  const el = document.getElementById(elId);
+  if(curr == null || prev == null){
+    el.textContent = "–";
+    el.className = "delta";
+    return;
+  }
+  const diff = curr - prev;
+  const sign = diff>0 ? "+" : "";
+  el.textContent = `${sign}${diff.toFixed(1)} pts vs mês anterior`;
+  el.className = "delta " + (diff>0 ? "pos" : diff<0 ? "neg" : "");
+}
+function fmtPctAllowText(v){
+  if (typeof v === "string") return v;
+  const n = Number(v);
+  return Number.isFinite(n) ? `${n.toFixed(1)}%` : "–";
+}
 function renderMiniBar(pct){
   if (!Number.isFinite(pct)) return "–";
   const w = Math.max(0, Math.min(100, pct));
@@ -181,19 +228,38 @@ function renderMiniBar(pct){
 function populateSelectors(){
   const t = $("#selTrilha"), m = $("#selMes");
   t.innerHTML = `<option>${T_ALL}</option>`;
-  Object.keys(DATA.trilhas).forEach(tr=>{ const o=document.createElement("option"); o.value=tr; o.textContent=tr; t.appendChild(o); });
+  Object.keys(DATA.trilhas).forEach(tr=>{
+    const o=document.createElement("option"); o.value=tr; o.textContent=tr; t.appendChild(o);
+  });
   m.innerHTML = DATA.meses.map(mm=>`<option>${mm}</option>`).join("");
-  t.value = T_ALL; m.value = DATA.meses.at(-1) || "";
+  t.value = T_ALL;
+  m.value = DATA.meses.at(-1) || "";
 }
 
 /* ========= KPIs helper ========= */
 function kpisFromSeries(ser, idx, acum=false){
   const prog = ser.progMed[idx] ?? 0;
   const atv  = (ser.ativos ? ser.ativos[idx] : 0) ?? 0;
-  if(!acum){ return { prog, atv, pts: ser.pontos[idx] ?? 0, conc: ser.conclusoes[idx] ?? 0 }; }
+  if(!acum){
+    return { prog, atv, pts: ser.pontos[idx] ?? 0, conc: ser.conclusoes[idx] ?? 0 };
+  }
   const pts  = ser.pontos.slice(0, idx+1).reduce((a,b)=>a+(Number(b)||0),0);
   const conc = ser.conclusoes.slice(0, idx+1).reduce((a,b)=>a+(Number(b)||0),0);
   return { prog, atv, pts, conc };
+}
+
+/* média de nota (quem fez prova) para trilha + mês */
+function computeAvgNota(trilhaSel, mesSel){
+  const rows = (DATA.students?.[mesSel] || []).filter(r=>{
+    if(trilhaSel !== T_ALL && r.trilha !== trilhaSel) return false;
+    const v = r.nota_prova;
+    if(v === undefined || v === null) return false;
+    const n = Number(v);
+    return Number.isFinite(n); // ignora "Sem prova" / "Não realizado"
+  });
+  if(!rows.length) return null;
+  const sum = rows.reduce((s,r)=> s + Number(r.nota_prova), 0);
+  return sum / rows.length;
 }
 
 /* ========= abas ========= */
@@ -205,25 +271,66 @@ function activateTab(id){
 }
 
 /* ========= INSIGHTS ========= */
-function makeInsightItem(html){ const d=document.createElement("div"); d.className="insight-item"; d.innerHTML=html; return d; }
+function makeInsightItem(html){
+  const d=document.createElement("div"); d.className="insight-item"; d.innerHTML=html; return d;
+}
 function renderInsights(){
   const box = $("#insights"); box.innerHTML = "";
-  const tr = $("#selTrilha").value; const mm = $("#selMes").value;
+  const tr = $("#selTrilha").value;
+  const mm = $("#selMes").value;
+
   let ser = (tr===T_ALL) ? DATA.overall : (DATA.trilhas[tr]?.series || null);
-  if(!ser){ box.appendChild(makeInsightItem("Sem dados para o contexto atual.")); return; }
-  const i = ser.meses.indexOf(mm); const prev = i>0 ? i-1 : null;
-  const progNow = (i>=0 ? (ser.progMed[i] ?? 0) : 0); const progPrev = (prev!=null ? (ser.progMed[prev] ?? null) : null);
+  if(!ser){
+    box.appendChild(makeInsightItem("Sem dados para o contexto atual."));
+    return;
+  }
+
+  const i = ser.meses.indexOf(mm);
+  const prev = i>0 ? i-1 : null;
+
+  const progNow = (i>=0 ? (ser.progMed[i] ?? 0) : 0);
+  const progPrev = (prev!=null ? (ser.progMed[prev] ?? null) : null);
   const delta = (progPrev==null) ? null : (progNow - progPrev);
-  box.appendChild(makeInsightItem(`<b>Tendência de progresso</b><span class="pill">${mm}</span><br>Progresso médio ${progPrev==null ? "no período" : "vs mês anterior"}: <b>${progNow.toFixed(1)}%</b> ${delta==null ? "" : (delta>0 ? `(<span style="color:var(--ok)">+${delta.toFixed(1)} p.p.</span>)` : delta<0 ? `(<span style="color:var(--bad)">${delta.toFixed(1)} p.p.</span>)` : "(estável)")}. ${tr===T_ALL ? "Visão consolidada entre trilhas." : `Trilha: <b>${tr}</b>.`}`));
+
+  box.appendChild(makeInsightItem(
+    `<b>Tendência de progresso</b><span class="pill">${mm}</span><br>
+     Progresso médio ${progPrev==null ? "no período" : "vs mês anterior"}:
+     <b>${progNow.toFixed(1)}%</b> ${
+      delta==null ? "" :
+      (delta>0 ? `(<span style="color:var(--ok)">+${delta.toFixed(1)} p.p.</span>)` :
+       delta<0 ? `(<span style="color:var(--bad)">${delta.toFixed(1)} p.p.</span>)` :
+       "(estável)")}. ${
+      tr===T_ALL ? "Visão consolidada entre trilhas." : `Trilha: <b>${tr}</b>.`}`
+  ));
+
+  // Insight de nota média
+  const notaNow = computeAvgNota(tr, mm);
+  if(notaNow != null){
+    box.appendChild(makeInsightItem(
+      `<b>Nota média nas provas</b><span class="pill">${mm}</span><br>
+       Entre quem fez prova (${tr === T_ALL ? "todas as trilhas" : "trilha selecionada"}): 
+       <b>${notaNow.toFixed(1)}</b> pontos.`
+    ));
+  }
 }
 
 /* ========= RENDER ========= */
 function render(){
-  const tr = $("#selTrilha").value; const mm = $("#selMes").value; const acum = $("#chkAcum").checked;
+  const tr = $("#selTrilha").value;
+  const mm = $("#selMes").value;
+  const acum = $("#chkAcum").checked;
+
   let ser = null, top = [];
-  if (tr === T_ALL){ ser = DATA.overall; top = DATA.overall_top_cursos || []; }
-  else { ser = DATA.trilhas[tr]?.series || {meses:[],progMed:[],pontos:[],conclusoes:[],ativos:[]}; top = DATA.trilhas[tr]?.top_cursos_global || []; }
-  const i = ser.meses.indexOf(mm), prev = i>0 ? i-1 : null;
+  if (tr === T_ALL){
+    ser = DATA.overall;
+    top = DATA.overall_top_cursos || [];
+  } else {
+    ser = DATA.trilhas[tr]?.series || {meses:[],progMed:[],pontos:[],conclusoes:[],ativos:[]};
+    top = DATA.trilhas[tr]?.top_cursos_global || [];
+  }
+
+  const i = ser.meses.indexOf(mm);
+  const prev = i>0 ? i-1 : null;
 
   const k = kpisFromSeries(ser, i, acum);
   $("#k_mes").textContent = mm || "–";
@@ -237,20 +344,53 @@ function render(){
   setDelta("d_conc", k.conc, prevK ? prevK.conc : null);
   setDelta("d_ativos", k.atv, prev!=null? (ser.ativos?ser.ativos[prev]:null):null);
 
-  charts.prog?.destroy?.(); charts.pts?.destroy?.();
+
+
+  // ----- NOTA MÉDIA (quem fez prova) -----
+  let notaCurr = 0;
+  let notaPrev = null;
+
+  if (ser && Array.isArray(ser.notaMedia)) {
+    if (i >= 0 && i < ser.notaMedia.length) {
+      notaCurr = Number(ser.notaMedia[i] ?? 0);
+    }
+    if (prev != null && prev >= 0 && prev < ser.notaMedia.length) {
+      notaPrev = Number(ser.notaMedia[prev]);
+    }
+  }
+
+  if (Number.isFinite(notaCurr) && (ser && Array.isArray(ser.notaMedia))) {
+    document.getElementById("k_nota").textContent = notaCurr.toFixed(1);
+  } else {
+    document.getElementById("k_nota").textContent = "–";
+  }
+
+  setDeltaNota("d_nota", notaCurr, notaPrev);
+
+
+  // GRÁFICOS
+  charts.prog?.destroy?.();
+  charts.pts?.destroy?.();
+
   if(tr === T_ALL){
     const trilhas = Object.keys(DATA.trilhas);
-    const vals = trilhas.map(t => { const s = DATA.trilhas[t].series; const idx = s.meses.indexOf(mm); return (idx>=0 ? (s.progMed[idx]||0) : 0); });
+    const vals = trilhas.map(name=>{
+      const s = DATA.trilhas[name]?.series;
+      const idx = s.meses.indexOf(mm);
+      return (idx>=0 ? (s.progMed[idx]||0) : 0);
+    });
     charts.prog = barProgressSnapshot("c_prog", trilhas, vals);
     $("#ttl_prog").textContent = "Progresso médio — mês selecionado (por trilha)";
-  } else {
+  }else{
     const val = (i>=0 ? (ser.progMed[i]||0) : 0);
     charts.prog = barProgressSnapshot("c_prog", [tr], [val]);
     $("#ttl_prog").textContent = "Progresso médio — mês selecionado";
   }
+
   charts.pts = lineNoLimit("c_pts", ser.meses, acum ? prefixSum(ser.pontos) : ser.pontos, "Pontos");
   $("#ttl_pts").textContent = acum ? "Pontos — mês a mês (acumulado)" : "Pontos — mês a mês";
 
+  // Top cursos
   renderTable("#t_top", top, [
     {key:"curso",             label:"Curso"},
     {key:"alunos_liberados",  label:"Alunos (com acesso)",                  fmt:v=> (Number(v)||0).toLocaleString("pt-BR")},
@@ -269,13 +409,12 @@ function renderAlunos(){
   const mm = $("#selMes").value;
   const q = ($("#qAluno").value || "").toLowerCase().trim();
 
-  // Linhas aluno-curso do mês selecionado
   const all = DATA.students?.[mm] || [];
   let rows = all
     .filter(r => tr===T_ALL ? true : r.trilha===tr)
     .filter(r => !q || (String(r.aluno).toLowerCase().includes(q) || String(r.curso).toLowerCase().includes(q)));
 
-  // Pontos manuais agregados por aluno (mês) — mantém a linha “Pontos Manuais”
+  // Pontos manuais agregados por aluno
   const man = DATA.manuals?.[mm] || [];
   const manByAluno = {};
   for(const r of man){
@@ -289,11 +428,11 @@ function renderAlunos(){
       trilha: "Não se aplica",
       curso: "Pontos Manuais",
       progresso: "Não se aplica",
+      nota_prova: "Não se aplica",
       pontos_mes: Number(pts) || 0
     });
   }
 
-  // Ordenação consistente
   rows.sort((a,b)=>{
     const an = String(a.aluno).localeCompare(String(b.aluno));
     if(an!==0) return an;
@@ -302,20 +441,26 @@ function renderAlunos(){
     return String(a.curso).localeCompare(String(b.curso));
   });
 
-  // ⚠️ Colunas finais (removidas: “Média na trilha (mês, inclui 0%)” e “Cursos com progresso (mês)”)
   renderTable("#t_alunos", rows, [
     {key:"aluno",     label:"Aluno"},
     {key:"trilha",    label:"Trilha"},
     {key:"curso",     label:"Curso"},
     {key:"progresso", label:"Progresso do aluno no curso", fmt:(v,r)=> r.curso==="Pontos Manuais" ? "Não se aplica" : renderMiniBar(Number(v)||0)},
+    {key:"nota_prova",label:"Nota da prova", fmt:(v,r)=>{
+        if(r.curso==="Pontos Manuais") return "Não se aplica";
+        if(v === undefined || v === null || v==="") return "–";
+        const n = Number(v);
+        return Number.isFinite(n) ? String(n) : v; // mostra "Sem prova" / "Não realizado" como texto
+      }},
     {key:"pontos_mes",label:"Pontos do mês (não manuais)", fmt:v=> (Number(v)||0).toLocaleString("pt-BR")}
   ]);
 }
 
-
-/* === MÉDIAS POR TRILHA (uma linha por Aluno × Trilha) === */
+/* === MÉDIAS POR TRILHA (Aluno × Trilha) === */
 function renderMedias(){
-  const trSel = $("#selTrilha").value; const mm = $("#selMes").value; const q = ($("#qMedia").value || "").toLowerCase().trim();
+  const trSel = $("#selTrilha").value;
+  const mm = $("#selMes").value;
+  const q = ($("#qMedia").value || "").toLowerCase().trim();
   const all = (DATA.students?.[mm] || []).filter(r => r.curso && r.curso !== "Pontos Manuais");
 
   const agg = {};
@@ -358,7 +503,9 @@ function wireTabs(){
   $("#qAluno")?.addEventListener("input", renderAlunos);
   $("#qMedia")?.addEventListener("input", renderMedias);
 }
-function wireFilters(){ ["selTrilha","selMes","chkAcum"].forEach(id=> $("#"+id).addEventListener("change", render)); }
+function wireFilters(){
+  ["selTrilha","selMes","chkAcum"].forEach(id=> $("#"+id).addEventListener("change", render));
+}
 
 /* ========= boot ========= */
 async function loadJSON(){
@@ -371,7 +518,9 @@ async function loadJSON(){
   wireFilters();
   render();
 }
-document.addEventListener("DOMContentLoaded", ()=> { loadJSON().catch(e=> alert("Falha ao carregar JSON: " + e.message)); });
+document.addEventListener("DOMContentLoaded", ()=> {
+  loadJSON().catch(e=> alert("Falha ao carregar JSON: " + e.message));
+});
 </script>
 </body>
 </html>
