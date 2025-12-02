@@ -77,8 +77,8 @@
     <section class="panel">
       <h2>KPIs</h2>
       <div class="kpis">
-        <div class="card"><h3>Alunos ativos (no mês — progresso ou pontos)</h3>  <p id="k_ativos">–</p> <div id="d_ativos" class="delta">–</div></div>
-        <div class="card"><h3>Progresso médio (entre quem iniciou)</h3><p id="k_prog">–</p><div id="d_prog" class="delta">–</div></div>
+        <div class="card"><h3>Alunos ativos </h3>  <p id="k_ativos">–</p></div>
+        <div class="card"><h3>Progresso médio </h3><p id="k_prog">–</p></div>
         <div class="card"><h3>Conclusões (no mês)</h3><p id="k_conc">–</p><div id="d_conc" class="delta">–</div></div>
         <div class="card"><h3>Pontos (no mês)</h3><p id="k_pts">–</p><div id="d_pts" class="delta">–</div></div>
         <!-- NOVO: nota média -->
@@ -339,10 +339,10 @@ function render(){
   $("#k_conc").textContent = (k.conc||0).toLocaleString("pt-BR");
   $("#k_ativos").textContent = (k.atv||0).toLocaleString("pt-BR");
   const prevK = (prev!=null) ? kpisFromSeries(ser, prev, acum) : null;
-  setDelta("d_prog", k.prog, prev!=null? ser.progMed[prev]:null);
+  // setDelta("d_prog", k.prog, prev!=null? ser.progMed[prev]:null);
   setDelta("d_pts",  k.pts,  prevK ? prevK.pts : null);
   setDelta("d_conc", k.conc, prevK ? prevK.conc : null);
-  setDelta("d_ativos", k.atv, prev!=null? (ser.ativos?ser.ativos[prev]:null):null);
+  // setDelta("d_ativos", k.atv, prev!=null? (ser.ativos?ser.ativos[prev]:null):null);
 
 
 

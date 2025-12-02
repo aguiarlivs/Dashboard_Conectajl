@@ -1,15 +1,28 @@
-# preprocess.py — gera data_trilhas.json a partir de progresso.xlsx, pontos.xlsx e produtos_provas.csv
+# preprocess_improved.py
+# Gera data_trilhas.json a partir de:
+#   - progresso.xlsx
+#   - pontos.xlsx
+#   - produtos_provas.csv
 #
 # Regras principais:
 # - "manual" identificado exclusivamente pela coluna TIPO (case-insensitive)
-# - Progresso da trilha no mês = média das médias de progresso por curso (snapshot ≤ mês)
+# - Progresso da trilha no mês = média das médias de progresso por curso
+#   considerando o snapshot ACUMULADO ATÉ O MÊS (≤ mês)
 # - Sem rateio de pontos entre cursos
 # - Linha "Pontos Manuais" apenas no Top cursos — visão geral (overall)
 # - Valores de pontos sempre inteiros (arredondados)
-# - Cursos com / sem prova definidos via produtos_provas.csv
-#   * cursos sem prova → "Sem prova"
-#   * cursos com prova, aluno sem nota → "Não realizado"
-# - Alunos ativos (no mês) = alunos com progresso registrado no mês OU pontos no mês
+# - Cursos COM/SEM prova definidos *somente* via produtos_provas.csv:
+#     • se CSV diz que NÃO possui prova → "Não possui prova"
+#     • se possui prova e aluno não fez → "Não realizada"
+#     • se possui prova e aluno fez → nota arredondada (texto)
+#
+# NOTAS (muito importante):
+# - KPIs de notas (notaMedia, taxaComProva, taxaAprovacao) são calculados
+#   EXCLUSIVAMENTE a partir de:
+#       • eventos `prova_aprovada` no pontos.xlsx (por mês)
+#       • coluna NOTA do progresso.xlsx (snapshot_global)
+# - Progresso e notas agora são 100% desacoplados: mudar uma regra de
+#   progresso não altera a nota média, e vice-versa.
 
 import pandas as pd
 import numpy as np
@@ -22,54 +35,17 @@ from datetime import datetime, timezone
 NOTA_APROVACAO = 70.0  # corte global de aprovação (pode ajustar)
 
 # -------------------------------------------------------------------
-# Leitura do CSV de produtos com / sem prova
-# Espera colunas: "curso" e "possui_prova" (sim/não)
-# -------------------------------------------------------------------
-try:
-    produtos_provas = pd.read_csv("produtos_provas.csv")
-except FileNotFoundError:
-    print("⚠️ Aviso: arquivo 'produtos_provas.csv' não encontrado. "
-          "Todos os cursos serão tratados como SEM prova.")
-    produtos_provas = pd.DataFrame(columns=["curso", "possui_prova"])
-
-PROVA_MAP = {}
-if not produtos_provas.empty and {"curso", "possui_prova"}.issubset(produtos_provas.columns):
-    produtos_provas["curso_norm"] = (
-        produtos_provas["curso"].astype(str).str.strip().str.lower().str.replace(r"\s+", " ", regex=True)
-    )
-    produtos_provas["possui_prova_norm"] = (
-        produtos_provas["possui_prova"].astype(str).str.strip().str.lower()
-    )
-    PROVA_MAP = {
-        row["curso_norm"]: row["possui_prova_norm"] in ("sim", "s", "1", "true", "t")
-        for _, row in produtos_provas.iterrows()
-    }
-else:
-    if produtos_provas.empty:
-        print("⚠️ 'produtos_provas.csv' está vazio ou sem as colunas esperadas. "
-              "Todos os cursos serão tratados como SEM prova.")
-    else:
-        print("⚠️ 'produtos_provas.csv' não possui as colunas 'curso' e 'possui_prova'. "
-              "Todos os cursos serão tratados como SEM prova.")
-    PROVA_MAP = {}
-
-def curso_tem_prova(nome_curso: str) -> bool:
-    """
-    Decide se o curso TEM prova usando o CSV produtos_provas.csv.
-    Se não estiver mapeado, assume False (sem prova).
-    """
-    if not nome_curso:
-        return False
-    k = re.sub(r"\s+", " ", str(nome_curso).strip().lower())
-    return PROVA_MAP.get(k, False)
-
-# -------------------------------------------------------------------
 # Helpers genéricos
 # -------------------------------------------------------------------
 def norm_text(s):
     s = "" if s is None else str(s)
     s = re.sub(r"\s+", " ", s.strip())
     return s
+
+def curso_norm(s):
+    if s is None:
+        return ""
+    return re.sub(r"\s+", " ", str(s).strip()).lower()
 
 def norm_key(s):
     return norm_text(s).lower()
@@ -106,14 +82,61 @@ def fnum(x, default=0.0):
         return default
 
 # -------------------------------------------------------------------
-# 1) Ler planilhas de progresso e pontos
+# 1) Leitura do CSV de produtos com / sem prova
+# -------------------------------------------------------------------
+try:
+    produtos_provas = pd.read_csv("produtos_provas.csv")
+    produtos_provas.columns = [norm_text(c) for c in produtos_provas.columns]
+
+    col_curso = find_col(produtos_provas, ["curso", "nome_produto", "produto", "nome do produto"])
+    col_flag  = find_col(produtos_provas, ["possui_prova", "tem_prova", "tem prova", "possui prova"])
+
+    if not col_curso or not col_flag:
+        print("⚠️ 'produtos_provas.csv' não possui colunas de curso + possui_prova reconhecíveis.")
+        print("   Esperado algo como 'curso' + 'possui_prova'. Todos os cursos serão tratados como SEM prova.")
+        PROVA_MAP = {}
+    else:
+        def parse_flag(v):
+            s = str(v).strip().lower()
+            if s in ("sim", "s", "yes", "y", "1", "true", "verdadeiro"):
+                return True
+            if s in ("nao", "não", "n", "no", "0", "false", "falso", ""):
+                return False
+            return False
+
+        tmp = produtos_provas[[col_curso, col_flag]].copy()
+        tmp["curso_norm"] = tmp[col_curso].astype(str).apply(curso_norm)
+        tmp["has_prova"]  = tmp[col_flag].apply(parse_flag)
+        tmp = tmp[tmp["curso_norm"] != ""]
+        PROVA_MAP = (
+            tmp.drop_duplicates("curso_norm", keep="last")
+               .set_index("curso_norm")["has_prova"]
+               .to_dict()
+        )
+        print(f"ℹ️ {len(PROVA_MAP)} cursos mapeados (com/sem prova).")
+
+except FileNotFoundError:
+    print("⚠️ Aviso: arquivo 'produtos_provas.csv' não encontrado. "
+          "Todos os cursos serão tratados como SEM prova.")
+    PROVA_MAP = {}
+
+def curso_tem_prova(nome_curso: str) -> bool:
+    """Retorna True se o curso TEM prova segundo o CSV (caso contrário, False)."""
+    if not nome_curso:
+        return False
+    k = curso_norm(nome_curso)
+    return PROVA_MAP.get(k, False)
+
+# -------------------------------------------------------------------
+# 2) Ler planilhas de PROGRESSO e PONTOS
 # -------------------------------------------------------------------
 progresso = pd.read_excel("progresso.xlsx")
 pontos    = pd.read_excel("pontos.xlsx")
+
 progresso.columns = [norm_text(c) for c in progresso.columns]
 pontos.columns    = [norm_text(c) for c in pontos.columns]
 
-# Colunas possíveis
+# PROGRESSO
 P_ALUNO = find_col(progresso, ["aluno","nome do aluno","usuário","usuario","nome"])
 P_CURSO = find_col(progresso, ["curso","produto","formação","formacao"])
 P_TRILHA= find_col(progresso, ["trilha"])
@@ -127,6 +150,7 @@ P_NOTA = find_col(progresso, [
     "resultado da prova", "resultado"
 ])
 
+# PONTOS – formato: CRIADO EM | TAG | ALUNO | TRILHA | VITRINE | CURSO | AULA | TIPO | PONTOS
 T_ALUNO = find_col(pontos, ["aluno","nome","usuário","usuario"])
 T_TIPO  = find_col(pontos, ["tipo","evento"])
 T_PONTOS= find_col(pontos, ["pontos"])
@@ -135,7 +159,7 @@ T_CURSO = find_col(pontos, ["curso","produto","formação","formacao"])
 T_TRILHA= find_col(pontos, ["trilha"])
 
 # -------------------------------------------------------------------
-# 2) Canonicalizar linhas
+# 3) Canonicalizar PROGRESSO e PONTOS
 # -------------------------------------------------------------------
 def map_progresso(df):
     rows = []
@@ -208,7 +232,7 @@ elif len(T) and "trilha_origem" in T.columns:
     )
 
 # -------------------------------------------------------------------
-# 3) Mapeamento curso → trilha
+# 4) Mapeamento curso → trilha
 # -------------------------------------------------------------------
 m1 = P[["curso","trilha"]].dropna().drop_duplicates() if "trilha" in P else pd.DataFrame(columns=["curso","trilha"])
 m2 = pd.DataFrame(columns=["curso","trilha"])
@@ -236,7 +260,7 @@ if len(T):
     )
 
 # -------------------------------------------------------------------
-# 4) Meses e snapshots
+# 5) Meses e snapshots de progresso (para PROGRESSO apenas)
 # -------------------------------------------------------------------
 meses = sorted(set(P["ym"].dropna().unique()).union(set(T["ym"].dropna().unique())))
 if not meses:
@@ -245,14 +269,16 @@ if not meses:
 P_sorted = P.copy()
 P_sorted["_dt"] = pd.to_datetime(P_sorted["atualizado_em"], errors="coerce")
 
-# snapshot global (último registro conhecido por aluno-curso)
+# Snapshot global (último registro conhecido por aluno-curso)
 snapshot_global = (
     P_sorted.sort_values(["aluno","curso","_dt"])
             .groupby(["aluno","curso"], as_index=False).tail(1)
 )
-snapshot_global["trilha"] = snapshot_global["curso"].map(lambda c: curso_to_trilha.get(c, "(sem trilha)"))
+snapshot_global["trilha"] = snapshot_global["curso"].map(
+    lambda c: curso_to_trilha.get(c, "(sem trilha)")
+)
 
-# Último progresso NO MÊS (== mês)
+# Último progresso NO MÊS (ym == mês) – usado apenas para saber se houve update
 last_in_month = {}
 for m in meses:
     dfm = P_sorted[P_sorted["ym"] == m].sort_values(["aluno","curso","_dt"])
@@ -263,7 +289,7 @@ for m in meses:
     else:
         last_in_month[m] = pd.DataFrame(columns=["aluno","curso","trilha","progresso","nota"])
 
-# Snapshot cumulativo por mês (≤ mês)
+# Snapshot acumulado por mês (≤ mês) – base oficial para progresso
 last_by_month_snapshot = {}
 for m in meses:
     dfm = P_sorted[(P_sorted["ym"].isna()) | (P_sorted["ym"] <= m)].sort_values(["aluno","curso","_dt"])
@@ -272,7 +298,48 @@ for m in meses:
     last_by_month_snapshot[m] = last[["aluno","curso","trilha","progresso","nota"]].copy()
 
 # -------------------------------------------------------------------
-# 5) Séries por trilha (inclui nota média / taxas)
+# 6) Conjunto de cursos com prova (via CSV)
+# -------------------------------------------------------------------
+if "curso" in P.columns:
+    cursos_com_prova = {
+        c for c in P["curso"].dropna().unique()
+        if curso_tem_prova(c)
+    }
+else:
+    cursos_com_prova = set()
+
+# -------------------------------------------------------------------
+# 7) Eventos de prova_aprovada + nota real (NOTAS apenas)
+# -------------------------------------------------------------------
+provas_evt = T[
+    (T["curso"] != "") &
+    (T["tipo"].str.contains("prova_aprovada", case=False, na=False))
+].copy()
+
+if len(provas_evt):
+    provas_evt["_dt"] = pd.to_datetime(provas_evt["criado_em"], errors="coerce")
+    provas_evt["trilha"] = provas_evt["curso"].map(
+        lambda c: curso_to_trilha.get(c, "(sem trilha)")
+    )
+
+    # Uma linha por (aluno, curso, ym) – último evento do mês
+    provas_evt = (
+        provas_evt.sort_values(["aluno", "curso", "ym", "_dt"])
+                  .groupby(["aluno", "curso", "ym"], as_index=False)
+                  .tail(1)
+    )
+
+    # Anexa NOTA do snapshot_global (nota final do curso)
+    snap_notas = snapshot_global[["aluno", "curso", "nota"]].copy()
+    provas_evt = provas_evt.merge(
+        snap_notas, on=["aluno", "curso"], how="left", suffixes=("", "_snap")
+    )
+    provas_evt["nota"] = provas_evt["nota"].apply(lambda v: fnum(v, default=np.nan))
+else:
+    provas_evt = pd.DataFrame(columns=["ym", "aluno", "curso", "trilha", "nota"])
+
+# -------------------------------------------------------------------
+# 8) Séries por trilha (PROGRESSO + NOTA desacoplados)
 # -------------------------------------------------------------------
 trilhas = sorted(
     set((P["trilha"] if "trilha" in P else pd.Series(dtype=str)).dropna().map(norm_text).unique())
@@ -286,10 +353,10 @@ for tr in trilhas:
     nota_med_tr, taxa_com_prova_tr, taxa_aprov_tr = [], [], []
 
     for m in meses:
+        # ---------- PROGRESSO (snapshot acumulado ≤ mês) ----------
         snap = last_by_month_snapshot[m]
         snap_tr = snap[snap["trilha"] == tr]
 
-        # progresso médio (média das médias dos cursos da trilha)
         if len(snap_tr):
             by_course = snap_tr.groupby("curso", as_index=False)["progresso"].mean()
             val = float(by_course["progresso"].mean())
@@ -297,7 +364,7 @@ for tr in trilhas:
             val = 0.0
         progMed.append(round(val, 2))
 
-        # atualização no mês?
+        # houve atualização naquele mês?
         lm = last_in_month[m]
         had = bool(len(lm[lm["trilha"] == tr]))
         hadUpdate.append(had)
@@ -307,7 +374,7 @@ for tr in trilhas:
         pontos_m.append(int(np.rint(tm["pontos"].sum())) if len(tm) else 0)
         concl_m.append(int(tm["tipo"].str.contains("curso_concluido", case=False, na=False).sum()) if len(tm) else 0)
 
-        # alunos ativos (no mês): progresso registrado no mês OU pontos no mês
+        # alunos ativos no mês
         prog_mes = P_sorted[(P_sorted["ym"] == m) & (P_sorted["trilha"] == tr)]
         pts_mes  = tm
         ativos_alunos = set(prog_mes["aluno"].dropna().unique()).union(
@@ -315,28 +382,25 @@ for tr in trilhas:
         )
         ativos_m.append(len(ativos_alunos))
 
-        # nota média / taxas (snapshot ≤ mês, apenas cursos com prova)
-        if len(snap_tr):
-            snap_nota_tr = snap_tr[
-                snap_tr["nota"].notna() &
-                snap_tr["curso"].apply(curso_tem_prova)
-            ]
-            notas_vals = snap_nota_tr["nota"].dropna().tolist()
-            total_matriculas_tr = len(snap_tr)
-            if notas_vals:
-                media = float(np.mean(notas_vals))
-                qtd_provas = len(notas_vals)
-                aprovados = sum(v >= NOTA_APROVACAO for v in notas_vals)
-                taxa_aprov = aprovados / qtd_provas
-                taxa_cp = qtd_provas / max(total_matriculas_tr, 1)
-            else:
-                media = 0.0
-                taxa_aprov = 0.0
-                taxa_cp = 0.0
+        # ---------- NOTAS (somente eventos de prova daquele mês) ----------
+        provas_tr_m = provas_evt[
+            (provas_evt["ym"] == m) &
+            (provas_evt["trilha"] == tr) &
+            (provas_evt["nota"].notna())
+        ]
+        notas_vals = provas_tr_m["nota"].dropna().tolist()
+
+        if notas_vals:
+            media = float(np.mean(notas_vals))
+            qtd_provas = len(notas_vals)
+            aprovados = sum(v >= NOTA_APROVACAO for v in notas_vals)
+
+            taxa_cp = 1.0            # houve prova → 100%
+            taxa_aprov = aprovados / max(qtd_provas, 1)
         else:
             media = 0.0
-            taxa_aprov = 0.0
             taxa_cp = 0.0
+            taxa_aprov = 0.0
 
         nota_med_tr.append(round(media, 2))
         taxa_com_prova_tr.append(round(taxa_cp * 100.0, 1))
@@ -365,21 +429,18 @@ for tr in trilhas:
     }
 
 # -------------------------------------------------------------------
-# 6) Top cursos por trilha + visão geral
+# 9) Top cursos por trilha + visão geral (usa snapshot_global)
 # -------------------------------------------------------------------
-# alunos com curso liberado por trilha/curso
 lib_trilha = P.groupby(["trilha","curso"], as_index=False)["aluno"].nunique()\
               .rename(columns={"aluno":"alunos_liberados"})
 
-# progresso médio (snapshot global por trilha/curso)
 prog_trilha = snapshot_global.groupby(["trilha","curso"], as_index=False)\
                              .agg(progresso_medio=("progresso","mean"))
 prog_trilha["progresso_medio"] = prog_trilha["progresso_medio"].round(2)
 
-# notas por trilha/curso (apenas cursos com prova)
 if "nota" in snapshot_global.columns:
     snap_provas = snapshot_global[
-        snapshot_global["curso"].apply(curso_tem_prova) &
+        snapshot_global["curso"].isin(cursos_com_prova) &
         snapshot_global["nota"].notna()
     ].copy()
     if len(snap_provas):
@@ -401,7 +462,6 @@ else:
     nota_trilha = pd.DataFrame(columns=["trilha","curso","nota_media",
                                         "provas_realizadas","aprovados","taxa_aprovacao"])
 
-# pontos por trilha/curso EXCLUINDO manuais
 pts_trilha  = (T[(T["is_manual"]==False) & (T["curso"]!="")]
                .groupby(["trilha","curso"], as_index=False)["pontos"].sum()
                .rename(columns={"pontos":"pontos_total"}))
@@ -442,10 +502,9 @@ lib_all = P.groupby(["curso"], as_index=False)["aluno"].nunique().rename(columns
 prog_all = snapshot_global.groupby(["curso"], as_index=False).agg(progresso_medio=("progresso","mean"))
 prog_all["progresso_medio"] = prog_all["progresso_medio"].round(2)
 
-# notas por curso (overall)
 if "nota" in snapshot_global.columns:
     snap_provas_all = snapshot_global[
-        snapshot_global["curso"].apply(curso_tem_prova) &
+        snapshot_global["curso"].isin(cursos_com_prova) &
         snapshot_global["nota"].notna()
     ].copy()
     if len(snap_provas_all):
@@ -487,7 +546,6 @@ overall_base = overall_base.sort_values(
     ascending=[False,False,False]
 )
 
-# Linha "Pontos Manuais" no topo (overall)
 manual_pts_total = int(np.rint(T[T["is_manual"] == True]["pontos"].sum())) if len(T) else 0
 manual_users = int(T[T["is_manual"] == True]["aluno"].nunique()) if len(T) else 0
 overall_top_cursos = overall_base[[
@@ -512,56 +570,8 @@ if manual_pts_total > 0 or manual_users > 0:
     }] + overall_top_cursos)
 
 # -------------------------------------------------------------------
-# 7) Séries gerais (overall)
+# 10) Tabela de alunos por mês (pontos + nota_prova textual)
 # -------------------------------------------------------------------
-prog_o, pontos_o, concl_o, ativos_o = [], [], [], []
-nota_media_o, taxa_com_prova_o, taxa_aprov_o = [], [], []
-
-for m in meses:
-    last = last_by_month_snapshot[m]
-
-    # progresso médio geral
-    vals = last["progresso"].dropna().tolist()
-    prog_o.append(round(float(np.mean(vals)) if vals else 0.0, 2))
-
-    # pontos / conclusões no mês
-    tm = T[T["ym"] == m]
-    pontos_o.append(int(np.rint(tm["pontos"].sum())))
-    concl_o.append(int(tm["tipo"].str.contains("curso_concluido", case=False, na=False).sum()))
-
-    # alunos ativos no mês (progresso no mês OU pontos no mês)
-    prog_mes = P_sorted[P_sorted["ym"] == m]
-    ativos_alunos = set(prog_mes["aluno"].dropna().unique()).union(
-        set(tm["aluno"].dropna().unique())
-    )
-    ativos_o.append(len(ativos_alunos))
-
-    # nota média geral (snapshot ≤ mês)
-    snap = last
-    total_matriculas = len(snap)
-    snap_nota = snap[
-        snap["nota"].notna() &
-        snap["curso"].apply(curso_tem_prova)
-    ]
-    notas_vals = snap_nota["nota"].dropna().tolist()
-    if notas_vals:
-        media = float(np.mean(notas_vals))
-        qtd_provas = len(notas_vals)
-        aprovados = sum(v >= NOTA_APROVACAO for v in notas_vals)
-        taxa_aprov = aprovados / qtd_provas
-        taxa_cp = qtd_provas / max(total_matriculas, 1)
-    else:
-        media = 0.0
-        taxa_aprov = 0.0
-        taxa_cp = 0.0
-    nota_media_o.append(round(media, 2))
-    taxa_com_prova_o.append(round(taxa_cp * 100.0, 1))
-    taxa_aprov_o.append(round(taxa_aprov * 100.0, 1))
-
-# -------------------------------------------------------------------
-# 8) Tabela de alunos por mês (pontos acumulados + nota_prova texto)
-# -------------------------------------------------------------------
-# 8.1) Pontos NÃO manuais por aluno/curso/trilha (base mensal)
 pts_a_c_t_mes = (
     T[(T["is_manual"] == False) & (T["curso"] != "")]
       .groupby(["ym", "aluno", "curso", "trilha"], as_index=False)["pontos"]
@@ -576,7 +586,6 @@ if len(pts_a_c_t_mes):
 else:
     pts_a_c_t_mes["pontos_cum"] = pd.Series(dtype=float)
 
-# 8.3) Pontos manuais por aluno (mensal)
 manuals_a_mes = (
     T[T["is_manual"] == True]
       .groupby(["ym", "aluno"], as_index=False)["pontos"]
@@ -595,14 +604,11 @@ students = {}
 manuals   = {}
 
 for m in meses:
-    # snapshot ≤ m (progresso mais recente por aluno-curso-trilha)
-    snap = last_by_month_snapshot[m].copy()  # cols: aluno, curso, trilha, progresso, nota
+    snap = last_by_month_snapshot[m].copy()
 
-    # 8.5) Pegar, para cada (aluno,curso,trilha), o último registro ACUMULADO cujo ym <= m
     if len(pts_a_c_t_mes):
         pts_cum_le_m = pts_a_c_t_mes[pts_a_c_t_mes["ym"] <= m]
         if len(pts_cum_le_m):
-            # pega a última linha por chave (aluno,curso,trilha)
             pts_cum_last = (
                 pts_cum_le_m
                 .sort_values(["aluno","curso","trilha","ym"])
@@ -614,10 +620,8 @@ for m in meses:
     else:
         pts_cum_last = pd.DataFrame(columns=["aluno","curso","trilha","pontos_cum"])
 
-    # 8.6) UNIÃO de bases: snapshot (progresso/nota) ⟷ pontos acumulados
     base = snap.merge(pts_cum_last, on=["aluno","curso","trilha"], how="outer")
 
-    # Defaults
     if "progresso" not in base.columns:
         base["progresso"] = 0.0
     base["progresso"] = base["progresso"].fillna(0.0)
@@ -629,37 +633,31 @@ for m in meses:
     if "nota" not in base.columns:
         base["nota"] = np.nan
 
-    # -------- resolver nota_prova em texto, usando CSV --------
     def resolve_nota(row):
         curso = row.get("curso") or ""
         nota  = row.get("nota")
 
-        # 1) Se o curso NÃO tem prova (segundo o CSV), sempre "Sem prova"
         if not curso_tem_prova(curso):
-            return "Sem prova"
+            return "Não possui prova"
 
-        # 2) Curso tem prova, mas esse aluno ainda não realizou
         if nota is None or (isinstance(nota, float) and math.isnan(nota)):
-            return "Não realizado"
+            return "Não realizada"
 
-        # 3) Nota numérica → arredonda e devolve como inteiro (ex: 79.6 → "80")
         try:
             v = fnum(nota)
             if math.isnan(v):
-                return "Não realizado"
+                return "Não realizada"
             return str(int(round(v)))
         except Exception:
-            return "Não realizado"
+            return "Não realizada"
 
     base["nota_prova"] = base.apply(resolve_nota, axis=1)
 
-    # Seleção/ordenação e saída
     base = base.rename(columns={"pontos_cum": "pontos_mes"})
     out_cols = ["aluno", "curso", "trilha", "progresso", "nota_prova", "pontos_mes"]
     base = base[out_cols].sort_values(["trilha", "aluno", "curso"], kind="stable")
     students[m] = base.to_dict(orient="records")
 
-    # 8.7) Manuais acumulados por aluno (independente de trilha) — linha sintética na tabela de alunos
     if len(manuals_a_mes):
         man_le_m = manuals_a_mes[manuals_a_mes["ym"] <= m]
         if len(man_le_m):
@@ -675,13 +673,57 @@ for m in meses:
     else:
         man_last = pd.DataFrame(columns=["aluno","pontos_manua_cum"])
 
-    # Guardamos com a mesma estrutura anterior (chave 'pontos_manua_mes' no JSON),
-    # mas agora contendo o ACUMULADO até o mês.
     if len(man_last):
         man_last = man_last.rename(columns={"pontos_manua_cum": "pontos_manua_mes"})
     manuals[m] = man_last.sort_values(["aluno"], kind="stable").to_dict(orient="records")
 
-# ================== 9) montar saída final ==================
+# -------------------------------------------------------------------
+# 11) Séries gerais (overall) – PROGRESSO + NOTAS desacoplados
+# -------------------------------------------------------------------
+prog_o, pontos_o, concl_o, ativos_o = [], [], [], []
+nota_media_o, taxa_com_prova_o, taxa_aprov_o = [], [], []
+
+for m in meses:
+    # PROGRESSO geral do mês (snapshot acumulado ≤ mês)
+    last_snap = last_by_month_snapshot[m]
+    vals = last_snap["progresso"].dropna().tolist()
+    prog_o.append(round(float(np.mean(vals)) if vals else 0.0, 2))
+
+    tm = T[T["ym"] == m]
+    pontos_o.append(int(np.rint(tm["pontos"].sum())))
+    concl_o.append(int(tm["tipo"].str.contains("curso_concluido", case=False, na=False).sum()))
+
+    prog_mes = P_sorted[P_sorted["ym"] == m]
+    ativos_alunos = set(prog_mes["aluno"].dropna().unique()).union(
+        set(tm["aluno"].dropna().unique())
+    )
+    ativos_o.append(len(ativos_alunos))
+
+    # NOTAS gerais do mês (somente provas_aprovadas + nota)
+    provas_m = provas_evt[
+        (provas_evt["ym"] == m) &
+        (provas_evt["nota"].notna())
+    ]
+    notas_m = provas_m["nota"].dropna().tolist()
+    if notas_m:
+        media = float(np.mean(notas_m))
+        qtd_provas = len(notas_m)
+        aprovados = sum(v >= NOTA_APROVACAO for v in notas_m)
+
+        taxa_cp = 1.0   # houve prova → 100%
+        taxa_aprov = aprovados / max(qtd_provas, 1)
+    else:
+        media = 0.0
+        taxa_cp = 0.0
+        taxa_aprov = 0.0
+
+    nota_media_o.append(round(media, 2))
+    taxa_com_prova_o.append(round(taxa_cp * 100.0, 1))
+    taxa_aprov_o.append(round(taxa_aprov * 100.0, 1))
+
+# -------------------------------------------------------------------
+# 12) Montar saída final
+# -------------------------------------------------------------------
 out = {
     "generated_at": datetime.now(timezone.utc).isoformat(),
     "meses": meses,
@@ -691,9 +733,9 @@ out = {
         "pontos": pontos_o,
         "conclusoes": concl_o,
         "ativos": ativos_o,
-        "notaMedia": nota_media_o,        # média geral por mês (apenas cursos com prova)
-        "taxaComProva": taxa_com_prova_o, # % matrículas com prova
-        "taxaAprovacao": taxa_aprov_o     # % provas aprovadas
+        "notaMedia": nota_media_o,
+        "taxaComProva": taxa_com_prova_o,
+        "taxaAprovacao": taxa_aprov_o
     },
     "overall_top_cursos": overall_top_cursos,
     "trilhas": {
@@ -702,12 +744,11 @@ out = {
             "top_cursos_global": top_cursos_global.get(tr, [])
         } for tr in trilhas
     },
-    "students": students,   # pontuação não-manual por aluno/curso/trilha + nota_prova textual
-    "manuals": manuals      # pontuação manual agregada por aluno (sem curso)
+    "students": students,
+    "manuals": manuals
 }
 
-# grava o arquivo JSON final
 with open("data_trilhas.json", "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, indent=2)
 
-print("✅ data_trilhas.json gerado com sucesso — usando produtos_provas.csv para cursos com/sem prova.")
+print("✅ data_trilhas.json gerado com sucesso — PROGRESSO e NOTAS calculados com regras independentes.")
