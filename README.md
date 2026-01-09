@@ -33,5 +33,21 @@ Dashboard estático (HTML + JS) para acompanhamento de **progresso**, **pontos**
 ---
 
 ## 📁 Estrutura do Repositório
+<img width="708" height="282" alt="image" src="https://github.com/user-attachments/assets/b03b394a-e76d-4386-97b7-7d048c469dd8" />
 
+
+## Atualização pelo VSCODE
+cd ~/Dashboard_Conectajl
+
+# 1) ver o que mudou
+git status
+
+# 2) adicionar tudo que mudou
+git add .
+
+# 3) criar o commit
+git commit -m "Atualiza preprocess e dashboard (provas/nota média)"
+
+# 4) enviar pro GitHub (branch atual)
+git push
 
