@@ -1,5 +1,6 @@
 # Dashboard Gerencial — Trilhas
- Teste livia
+
+
 Dashboard estático (HTML + JS) para acompanhamento de **progresso**, **pontos** e **conclusões** por **trilha** e **curso**, com visualização por **mês**, lista de **alunos** e uma seção de **insights automáticos**.
 
 > **Stack**: HTML5, CSS, Chart.js, JavaScript vanilla.  
