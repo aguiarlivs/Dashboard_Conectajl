@@ -1,0 +1,360 @@
+{
+  "version": 1,
+  "source": "Trilhas_por_Cargos-Atualizada.pdf",
+  "profiles": [
+    {
+      "cargo": "Instalação e Manutenção",
+      "source": "pdf",
+      "trail_exact": [
+        "Técnico IoT 3.0",
+        "Técnico de Fibra IoT 2.0",
+        "Sucesso do Cliente na Instalação"
+      ],
+      "trail_keywords": [
+        "instalação",
+        "fibra",
+        "iot",
+        "manutenção"
+      ],
+      "course_exact": [
+        "Formação Técnico IoT 3.0",
+        "Técnico IoT 3.0 - Prova e Certificado",
+        "Técnico de Fibra IOT 2.0",
+        "Instalação Blindada",
+        "Instalação Blindada - IoT 2.0",
+        "Documentário: Instalação na Prática",
+        "Documentário de Instalação",
+        "Fibra Óptica",
+        "Fibra Óptica do Zero",
+        "Introdução a Fibra Óptica",
+        "Suporte / Manutenção para Planos de Alta Velocidade",
+        "Wi-Fi Premium",
+        "Wi-Fi Premium Residencial",
+        "CFTV para Instaladores",
+        "Dispositivos Inteligentes"
+      ],
+      "course_keywords": [
+        "instalação",
+        "fibra",
+        "iot",
+        "wi-fi premium",
+        "cftv",
+        "manutenção"
+      ]
+    },
+    {
+      "cargo": "NOC",
+      "source": "pdf",
+      "trail_exact": [
+        "Configuração e Monitoramento de OLT"
+      ],
+      "trail_keywords": [
+        "olt",
+        "monitoramento",
+        "noc"
+      ],
+      "course_exact": [
+        "Configuração e monitoramento de OLT",
+        "Curso de GPON e XGS-PON",
+        "Prática com DATACOM",
+        "Prática com PARKS",
+        "Prática com RAISECOM",
+        "Prática com ZTE",
+        "Integrações com ERPs de Mercado",
+        "GPON e XGS-PON"
+      ],
+      "course_keywords": [
+        "olt",
+        "gpon",
+        "xgs-pon",
+        "datacom",
+        "parks",
+        "raisecom",
+        "zte",
+        "monitoramento"
+      ]
+    },
+    {
+      "cargo": "Analista de Redes",
+      "source": "pdf",
+      "trail_exact": [
+        "Trilha Redes Lógicas - 1",
+        "Trilha Redes Lógicas - 2",
+        "Trilha Redes Lógicas - 3",
+        "Trilha Redes Lógicas - 4"
+      ],
+      "trail_keywords": [
+        "redes lógicas",
+        "analista de redes"
+      ],
+      "course_exact": [
+        "Redes TCP/IP Básico",
+        "Redes TCP/IP Intermediário",
+        "Redes TCP/IP Avançado",
+        "Monitoramento da Rede PON via ZABBIX e GRAFANA",
+        "Dominando o Ping - Do Zero ao Avançado",
+        "Dominando o Ping",
+        "Redes DWDM",
+        "Redes TCP/IP 1"
+      ],
+      "course_keywords": [
+        "tcp/ip",
+        "dwdm",
+        "ping",
+        "zabbix",
+        "grafana",
+        "rede pon"
+      ]
+    },
+    {
+      "cargo": "Suporte Remoto",
+      "source": "pdf",
+      "trail_exact": [
+        "Suporte"
+      ],
+      "trail_keywords": [
+        "suporte"
+      ],
+      "course_exact": [
+        "Suporte Técnico - Nível 1",
+        "Sucesso do Cliente no Suporte",
+        "Workshop: Desvendando o Suporte Técnico"
+      ],
+      "course_keywords": [
+        "suporte técnico",
+        "suporte"
+      ]
+    },
+    {
+      "cargo": "Construção de Redes",
+      "source": "pdf",
+      "trail_exact": [],
+      "trail_keywords": [
+        "construção de redes"
+      ],
+      "course_exact": [
+        "Técnico de Fusão e Certificação de Redes FTTH",
+        "Técnico em Fusão e Certificação - Formação para Construtores de Redes de Fibra",
+        "Certificação de rede e OTDR",
+        "Cálculo de Potência e Certificação",
+        "Lançamento de Fibra Óptica e Adequação de Ferragens",
+        "Fusão, montagem de caixas e DIO",
+        "Fibra Óptica de A a Z - Fusão"
+      ],
+      "course_keywords": [
+        "fusão",
+        "otdr",
+        "certificação",
+        "lançamento de fibra",
+        "adequação de ferragens"
+      ]
+    },
+    {
+      "cargo": "Projetista de Redes FTTH",
+      "source": "pdf",
+      "trail_exact": [],
+      "trail_keywords": [
+        "projetista",
+        "ftth",
+        "fttx"
+      ],
+      "course_exact": [
+        "Projetista de Redes FTTH",
+        "50 Aulas Projetos FTTH",
+        "Ferramentas de Projeto e Documentação",
+        "Método 3Ps de Desenvolver Projetos FTTH",
+        "O Método 3Ps para Projetos FTTx",
+        "Projetos FTTH 3.0",
+        "Fibra Óptica de A a Z - Projetos FTTH",
+        "Redes FTTH"
+      ],
+      "course_keywords": [
+        "projetos ftth",
+        "projeto",
+        "documentação",
+        "3ps",
+        "ftth",
+        "fttx"
+      ]
+    },
+    {
+      "cargo": "Sucesso do Cliente",
+      "source": "pdf",
+      "trail_exact": [
+        "Sucesso do cliente"
+      ],
+      "trail_keywords": [
+        "sucesso do cliente",
+        "relacionamento"
+      ],
+      "course_exact": [
+        "Gestão de Sucesso do Cliente",
+        "Sucesso do Cliente no Produto",
+        "NPS: A Pergunta Definitiva",
+        "NPS na prática: Do Zero à execução com resultados",
+        "Criando Clientes Influenciadores",
+        "O Cliente Feliz",
+        "Jornada de Sucesso e Retenção de Clientes",
+        "Sucesso do Cliente"
+      ],
+      "course_keywords": [
+        "sucesso do cliente",
+        "retenção",
+        "nps",
+        "cliente feliz",
+        "influenciadores",
+        "encantamento"
+      ]
+    },
+    {
+      "cargo": "Vendedor",
+      "source": "pdf",
+      "trail_exact": [
+        "Vendedor de Elite"
+      ],
+      "trail_keywords": [
+        "vendedor",
+        "venda"
+      ],
+      "course_exact": [
+        "Vendedor de Elite",
+        "Venda Externa - PAP",
+        "Venda Interna",
+        "Psicologia das Vendas",
+        "Sucesso do Cliente na Venda",
+        "Vendedor de Elite - Formação para Vendedores"
+      ],
+      "course_keywords": [
+        "vendedor",
+        "venda",
+        "pap",
+        "psicologia das vendas"
+      ]
+    },
+    {
+      "cargo": "Gestor de Relacionamento",
+      "source": "pdf",
+      "trail_exact": [],
+      "trail_keywords": [
+        "gestor de relacionamento"
+      ],
+      "course_exact": [
+        "O Líder do Futuro",
+        "Formação de Líderes",
+        "Jornada de Sucesso e Retenção de Clientes",
+        "Gestão de Sucesso do Cliente"
+      ],
+      "course_keywords": [
+        "líder",
+        "lider",
+        "gestor",
+        "retenção de clientes",
+        "sucesso do cliente"
+      ]
+    },
+    {
+      "cargo": "Gestor de Suporte Operacional",
+      "source": "pdf",
+      "trail_exact": [],
+      "trail_keywords": [
+        "gestor de suporte"
+      ],
+      "course_exact": [
+        "O Líder do Futuro",
+        "Formação de Líderes",
+        "Suporte Técnico - Nível 1",
+        "Formação Técnico IoT 3.0",
+        "Anlix - Princípios do WI-FI"
+      ],
+      "course_keywords": [
+        "líder",
+        "lider",
+        "suporte",
+        "iot"
+      ]
+    },
+    {
+      "cargo": "Gestor de Redes",
+      "source": "pdf",
+      "trail_exact": [],
+      "trail_keywords": [
+        "gestor de redes"
+      ],
+      "course_exact": [
+        "Formação de Líderes",
+        "GPON e XGS-PON",
+        "Anlix - Princípios do WI-FI",
+        "Redes Neutras",
+        "Fibra Óptica do Zero"
+      ],
+      "course_keywords": [
+        "líder",
+        "lider",
+        "redes",
+        "gpon",
+        "wi-fi"
+      ]
+    },
+    {
+      "cargo": "Gestor de RH",
+      "source": "pdf",
+      "trail_exact": [
+        "Gestão de talentos"
+      ],
+      "trail_keywords": [
+        "gestão de talentos",
+        "rh"
+      ],
+      "course_exact": [
+        "Gestão de Talentos em Telecom",
+        "Formação de Líderes",
+        "O Líder do Futuro"
+      ],
+      "course_keywords": [
+        "gestão de talentos",
+        "líder",
+        "lider",
+        "rh"
+      ]
+    },
+    {
+      "cargo": "Financeiro",
+      "source": "heuristica_local",
+      "trail_exact": [
+        "Financeiro - 01"
+      ],
+      "trail_keywords": [
+        "financeiro",
+        "inadimplência"
+      ],
+      "course_exact": [
+        "Gestão de Inadimplência com Guilherme Nigri",
+        "Sucesso do Cliente na Gestão de Inadimplência"
+      ],
+      "course_keywords": [
+        "financeiro",
+        "inadimplência",
+        "inadimplencia"
+      ]
+    },
+    {
+      "cargo": "Coordenação Administrativa",
+      "source": "heuristica_local",
+      "trail_exact": [
+        "Coordenação Administrativa - 02"
+      ],
+      "trail_keywords": [
+        "coordenação administrativa",
+        "coordenacao administrativa"
+      ],
+      "course_exact": [
+        "Dominando a Plataforma"
+      ],
+      "course_keywords": [
+        "plataforma",
+        "coordenação",
+        "coordenacao"
+      ]
+    }
+  ]
+}

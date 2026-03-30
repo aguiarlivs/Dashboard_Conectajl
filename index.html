@@ -1,526 +1,175 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Dashboard Gerencial — Trilhas</title>
-<style>
-  :root{--bg:#0f172a;--panel:#0b1222;--card:#0d1b2a;--muted:#9fb1c6;--txt:#e5e7eb;--ok:#22c55e;--bad:#ef4444}
-  *{box-sizing:border-box} html,body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.42 system-ui,Segoe UI,Roboto}
-  header{padding:14px 18px;border-bottom:1px solid #1f2b3a;background:#0f172a;display:flex;gap:16px;align-items:end;flex-wrap:wrap}
-  .ctrl{display:flex;flex-direction:column;gap:6px}
-  .row{display:flex;align-items:center;gap:8px}
-  select,input[type=file],button{height:36px;background:#0b1222;color:#d6e2f4;border:1px solid #1e293b;border-radius:10px;padding:0 10px;cursor:pointer}
-  input[type=checkbox]{transform:scale(1.1);cursor:pointer}
-  button{background:#0f192c}
-  main{padding:16px 18px;display:grid;gap:14px}
-  .tabs{display:flex;gap:8px;margin-top:8px}
-  .tab{padding:8px 12px;border:1px solid #1e293b;border-radius:10px;background:#0b1222;color:#cdd8e6;cursor:pointer}
-  .tab.active{outline:2px solid #3b82f6;background:#0f192c}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .panel{background:var(--panel);border:1px solid #1e293b;border-radius:14px;padding:12px}
-  .card{background:var(--card);border:1px solid #1e293b;border-radius:14px;padding:12px}
-  /* agora temos 6 cards de KPI */
-  .kpis{display:grid;grid-template-columns:repeat(6,minmax(160px,1fr));gap:10px}
-  .card h3{margin:0 0 4px;color:#bcd0e6;font-size:12px}
-  .card p{margin:0;font-size:20px}
-  .delta{font-size:11px;margin-top:6px;color:#cbd5e1}
-  .delta.pos{color:var(--ok)} .delta.neg{color:var(--bad)}
-  .chartwrap{height:260px}
-  .table{overflow:auto;border-radius:10px;border:1px solid #1e293b}
-  table{width:100%;border-collapse:collapse;background:#0b1222}
-  th,td{padding:8px 10px;border-bottom:1px solid #132238;white-space:nowrap}
-  th{background:#0f192c;position:sticky;top:0;text-align:left}
-  .hidden{display:none}
-  .search{display:flex;gap:8px;margin:8px 0}
-  .search input{flex:1;height:36px;background:#0b1222;color:#d6e2f4;border:1px solid #1e293b;border-radius:10px;padding:0 10px}
-
-  /* Insights */
-  .insights{display:grid;grid-template-columns:1fr;gap:8px}
-  .insight-item{background:#0b1222;border:1px solid #1e293b;border-radius:10px;padding:10px}
-  .pill{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;font-size:11px;background:#0f192c;color:#cbd5e1;border:1px solid #1e293b}
-
-  /* mini barra de progresso */
-  .mini-bar{min-width:140px;display:flex;align-items:center;gap:8px}
-  .mini-bar-track{flex:1;height:8px;background:#132238;border-radius:999px;overflow:hidden}
-  .mini-bar-fill{height:100%;background:#22c55e}
-</style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Radar Mensal de T&amp;D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-<header>
-  <div style="font-weight:700">Dashboard Gerencial — Trilhas</div>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <span class="eyebrow">ConectaJL • Radar mensal</span>
+          <h1>Radar mensal de T&amp;D</h1>
+          <p class="hero-text">
+            Dashboard gerencial com progresso mensal observado por aula, conclusoes de curso e notas de prova datadas por nivel de evidencia.
+          </p>
+        </div>
 
-  <div class="ctrl"><span>Trilha</span><select id="selTrilha"></select></div>
-
-  <div class="ctrl">
-    <span>Mês</span>
-    <div class="row">
-      <select id="selMes"></select>
-      <label class="row" style="gap:6px">
-        <input type="checkbox" id="chkAcum">
-        <span>Acumular até o mês</span>
-      </label>
-    </div>
-  </div>
-</header>
-
-<main>
-  <div class="tabs">
-    <div id="tabOverview" class="tab active">Visão Geral</div>
-    <div id="tabAlunos" class="tab">Alunos</div>
-    <div id="tabMedias" class="tab">Médias por Trilha</div>
-  </div>
-
-  <!-- ====== OVERVIEW ====== -->
-  <div id="viewOverview">
-    <section class="panel">
-      <h2>KPIs</h2>
-      <div class="kpis">
-        <div class="card"><h3>Alunos ativos </h3>  <p id="k_ativos">–</p></div>
-        <div class="card"><h3>Progresso médio </h3><p id="k_prog">–</p></div>
-        <div class="card"><h3>Conclusões (no mês)</h3><p id="k_conc">–</p><div id="d_conc" class="delta">–</div></div>
-        <div class="card"><h3>Pontos (no mês)</h3><p id="k_pts">–</p><div id="d_pts" class="delta">–</div></div>
-        <!-- NOVO: nota média -->
-        <div class="card"><h3>Nota média (quem fez prova)</h3><p id="k_nota">–</p><div id="d_nota" class="delta">–</div></div>
-        <div class="card"><h3>Mês</h3><p id="k_mes">–</p></div>
+        <div class="hero-controls card">
+          <div class="filter-row">
+            <div class="filter">
+              <label for="trailSelect">Trilha</label>
+              <select id="trailSelect"></select>
+            </div>
+            <div class="filter">
+              <label for="monthSelect">Mes de referencia</label>
+              <select id="monthSelect"></select>
+            </div>
+          </div>
+        </div>
       </div>
-    </section>
+    </header>
 
-    <section class="grid2">
-      <div class="panel"><h2 id="ttl_prog">Progresso médio — mês selecionado</h2><div class="chartwrap"><canvas id="c_prog"></canvas></div></div>
-      <div class="panel"><h2 id="ttl_pts">Pontos — mês a mês</h2><div class="chartwrap"><canvas id="c_pts"></canvas></div></div>
-    </section>
+    <main class="dashboard">
+      <section class="card status-card">
+        <div class="section-head">
+          <div>
+            <h2 id="statusTitle">Base do mes</h2>
+            <p id="statusText">Carregando...</p>
+          </div>
+        </div>
+      </section>
 
-    <section class="panel">
-      <h2>Top cursos — visão geral (acumulado)</h2>
-      <div id="t_top" class="table"></div>
-    </section>
+      <section class="summary-grid">
+        <article class="metric-card card">
+          <span class="metric-label">Colaboradores com acesso</span>
+          <strong class="metric-value" id="kpiEligible">-</strong>
+          <span class="metric-meta" id="kpiEligibleMeta">-</span>
+        </article>
 
-    <!-- ====== INSIGHTS ====== -->
-    <section class="panel">
-      <h2>Insights automáticos</h2>
-      <div id="insights" class="insights"></div>
-    </section>
+        <article class="metric-card card">
+          <span class="metric-label">Ativos no mes</span>
+          <strong class="metric-value" id="kpiActive">-</strong>
+          <span class="metric-meta" id="kpiActiveMeta">-</span>
+        </article>
+
+        <article class="metric-card card">
+          <span class="metric-label">Progresso medio da base</span>
+          <strong class="metric-value" id="kpiProgressAvg">-</strong>
+          <span class="metric-meta" id="kpiProgressAvgMeta">-</span>
+        </article>
+
+        <article class="metric-card card">
+          <span class="metric-label">Cursos com avancos no mes</span>
+          <strong class="metric-value" id="kpiProgressCourses">-</strong>
+          <span class="metric-meta" id="kpiProgressCoursesMeta">-</span>
+        </article>
+
+        <article class="metric-card card">
+          <span class="metric-label">Cursos concluidos no mes</span>
+          <strong class="metric-value" id="kpiCompleted">-</strong>
+          <span class="metric-meta" id="kpiCompletedMeta">-</span>
+        </article>
+
+        <article class="metric-card card">
+          <span class="metric-label">Provas com nota no mes</span>
+          <strong class="metric-value" id="kpiExams">-</strong>
+          <span class="metric-meta" id="kpiExamsMeta">-</span>
+        </article>
+
+        <article class="metric-card card">
+          <span class="metric-label">Nota media das provas</span>
+          <strong class="metric-value" id="kpiScore">-</strong>
+          <span class="metric-meta" id="kpiScoreMeta">-</span>
+        </article>
+
+        <article class="metric-card card">
+          <span class="metric-label">Aulas concluidas no mes</span>
+          <strong class="metric-value" id="kpiLessons">-</strong>
+          <span class="metric-meta" id="kpiLessonsMeta">-</span>
+        </article>
+      </section>
+
+      <section class="analytics-grid">
+        <article class="card chart-card">
+          <div class="section-head">
+            <div>
+              <h2>Status dos colaboradores</h2>
+              <p>Leitura executiva do recorte selecionado.</p>
+            </div>
+          </div>
+          <div class="chart-box"><canvas id="statusChart"></canvas></div>
+        </article>
+
+        <article class="card chart-card">
+          <div class="section-head">
+            <div>
+              <h2>Evolucao do progresso</h2>
+              <p>Linhas mostram progresso observado; barras mostram quantos cursos avancaram em cada mes.</p>
+            </div>
+          </div>
+          <div class="chart-box"><canvas id="progressChart"></canvas></div>
+        </article>
+
+        <article class="card chart-card chart-card-wide">
+          <div class="section-head">
+            <div>
+              <h2>Evolucao das provas</h2>
+              <p>Notas mensais usam a hierarquia: <code>prova_aprovada</code> &gt; <code>curso_concluido</code> &gt; ultima aula.</p>
+            </div>
+          </div>
+          <div class="chart-box chart-box-wide"><canvas id="examChart"></canvas></div>
+        </article>
+      </section>
+
+      <section class="card table-card">
+        <div class="section-head">
+          <div>
+            <h2>Quem avancou no mes</h2>
+            <p id="activeSubtitle">-</p>
+          </div>
+        </div>
+        <div class="search-row">
+          <input id="activeSearch" placeholder="Filtrar por colaborador, cargo, trilha ou curso..." />
+        </div>
+        <div class="table-wrap" id="activeTable"></div>
+      </section>
+
+      <section class="card table-card">
+        <div class="section-head">
+          <div>
+            <h2>Quem precisa de atencao</h2>
+            <p id="inactiveSubtitle">-</p>
+          </div>
+        </div>
+        <div class="search-row">
+          <input id="inactiveSearch" placeholder="Filtrar por colaborador, cargo ou trilha..." />
+        </div>
+        <div class="table-wrap table-wrap-limited" id="inactiveTable"></div>
+      </section>
+
+      <section class="card table-card">
+        <div class="section-head">
+          <div>
+            <h2>Cursos no mes</h2>
+            <p id="courseSubtitle">-</p>
+          </div>
+        </div>
+        <div class="search-row">
+          <input id="courseSearch" placeholder="Filtrar por curso ou trilha..." />
+        </div>
+        <div class="table-wrap table-wrap-limited" id="courseTable"></div>
+      </section>
+    </main>
   </div>
 
-  <!-- ====== ALUNOS ====== -->
-  <div id="viewAlunos" class="hidden">
-    <section class="panel">
-      <h2>Alunos — conforme filtros (Trilha + Mês)</h2>
-      <div class="search">
-        <input id="qAluno" placeholder="Filtrar por aluno ou curso..." />
-      </div>
-      <div>
-        <h3>Matrículas e progresso por curso</h3>
-        <div id="t_alunos" class="table"></div>
-      </div>
-    </section>
-  </div>
-
-  <!-- ====== MÉDIAS POR TRILHA ====== -->
-  <div id="viewMedias" class="hidden">
-    <section class="panel">
-      <h2>Médias por Trilha — (Aluno × Trilha)</h2>
-      <div class="search">
-        <input id="qMedia" placeholder="Filtrar por aluno ou trilha..." />
-      </div>
-      <div>
-        <h3>Progresso médio dentro dos cursos da trilha (mês selecionado)</h3>
-        <div id="t_medias" class="table"></div>
-      </div>
-    </section>
-  </div>
-</main>
-
-<script>
-/* ========= estado ========= */
-let DATA = null;
-let charts = { prog:null, pts:null };
-const $ = s => document.querySelector(s);
-const T_ALL = "(Todas as trilhas)";
-
-/* ========= utilitários ========= */
-function renderTable(sel, rows, cols){
-  const box = $(sel);
-  if(!rows?.length){
-    box.innerHTML = '<div style="padding:10px;color:#9fb1c6">Sem dados.</div>';
-    return;
-  }
-  const thead = `<thead><tr>${cols.map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>`;
-  const tbody = `<tbody>${rows.map(r=>`<tr>${
-      cols.map(c=>{
-        let v = r[c.key];
-        if (v == null || (typeof v === "number" && Number.isNaN(v))) v = 0;
-        const txt = c.fmt?c.fmt(v, r):(v);
-        return `<td>${txt}</td>`;
-      }).join('')
-    }</tr>`).join('')}</tbody>`;
-  box.innerHTML = `<table>${thead}${tbody}</table>`;
-}
-function lineNoLimit(id, labels, data, label){
-  const ctx = document.getElementById(id).getContext('2d');
-  return new Chart(ctx,{
-    type:'line',
-    data:{labels, datasets:[{label,data,tension:.25}]},
-    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{labels:{boxWidth:12}}}}
-  });
-}
-function barProgressSnapshot(id, labels, data){
-  const ctx = document.getElementById(id).getContext('2d');
-  return new Chart(ctx,{
-    type:'bar',
-    data:{labels, datasets:[{label:'Progresso médio (%)', data}]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      scales:{ y:{ beginAtZero:true, max:100, title:{display:true,text:'Progresso médio (%)'} } },
-      plugins:{ legend:{ display:false } }
-    }
-  });
-}
-function prefixSum(arr){
-  let s=0; return arr.map(v=> s + (Number(v)||0));
-}
-
-function setDelta(elId, curr, prev){
-  const el = document.getElementById(elId);
-
-  // se não tiver valor anterior ou atual válido, não mostra variação
-  if (prev == null || !Number.isFinite(curr) || !Number.isFinite(prev)) {
-    el.textContent = "–";
-    el.className = "delta";
-    return;
-  }
-
-  // variação percentual vs mês anterior
-  const d = ((curr - prev) / (Math.abs(prev) > 0 ? Math.abs(prev) : 1)) * 100;
-
-  el.textContent = `${d > 0 ? '+' : ''}${d.toFixed(1)}% vs mês anterior`;
-  el.className = "delta " + (d > 0 ? "pos" : d < 0 ? "neg" : "");
-}
-
-
-/* delta específico para nota (pontos, não %) */
-function setDeltaNota(elId, curr, prev){
-  const el = document.getElementById(elId);
-  if(curr == null || prev == null){
-    el.textContent = "–";
-    el.className = "delta";
-    return;
-  }
-  const diff = curr - prev;
-  const sign = diff>0 ? "+" : "";
-  el.textContent = `${sign}${diff.toFixed(1)} pts vs mês anterior`;
-  el.className = "delta " + (diff>0 ? "pos" : diff<0 ? "neg" : "");
-}
-function fmtPctAllowText(v){
-  if (typeof v === "string") return v;
-  const n = Number(v);
-  return Number.isFinite(n) ? `${n.toFixed(1)}%` : "–";
-}
-function renderMiniBar(pct){
-  if (!Number.isFinite(pct)) return "–";
-  const w = Math.max(0, Math.min(100, pct));
-  return `<div class="mini-bar"><div class="mini-bar-track"><div class="mini-bar-fill" style="width:${w}%"></div></div><span>${pct.toFixed(1)}%</span></div>`;
-}
-
-/* ========= selects ========= */
-function populateSelectors(){
-  const t = $("#selTrilha"), m = $("#selMes");
-  t.innerHTML = `<option>${T_ALL}</option>`;
-  Object.keys(DATA.trilhas).forEach(tr=>{
-    const o=document.createElement("option"); o.value=tr; o.textContent=tr; t.appendChild(o);
-  });
-  m.innerHTML = DATA.meses.map(mm=>`<option>${mm}</option>`).join("");
-  t.value = T_ALL;
-  m.value = DATA.meses.at(-1) || "";
-}
-
-/* ========= KPIs helper ========= */
-function kpisFromSeries(ser, idx, acum=false){
-  const prog = ser.progMed[idx] ?? 0;
-  const atv  = (ser.ativos ? ser.ativos[idx] : 0) ?? 0;
-  if(!acum){
-    return { prog, atv, pts: ser.pontos[idx] ?? 0, conc: ser.conclusoes[idx] ?? 0 };
-  }
-  const pts  = ser.pontos.slice(0, idx+1).reduce((a,b)=>a+(Number(b)||0),0);
-  const conc = ser.conclusoes.slice(0, idx+1).reduce((a,b)=>a+(Number(b)||0),0);
-  return { prog, atv, pts, conc };
-}
-
-/* média de nota (quem fez prova) para trilha + mês */
-function computeAvgNota(trilhaSel, mesSel){
-  const rows = (DATA.students?.[mesSel] || []).filter(r=>{
-    if(trilhaSel !== T_ALL && r.trilha !== trilhaSel) return false;
-    const v = r.nota_prova;
-    if(v === undefined || v === null) return false;
-    const n = Number(v);
-    return Number.isFinite(n); // ignora "Sem prova" / "Não realizado"
-  });
-  if(!rows.length) return null;
-  const sum = rows.reduce((s,r)=> s + Number(r.nota_prova), 0);
-  return sum / rows.length;
-}
-
-/* ========= abas ========= */
-function activateTab(id){
-  ["tabOverview","tabAlunos","tabMedias"].forEach(t=> $("#"+t).classList.toggle("active", t===id));
-  $("#viewOverview").classList.toggle("hidden", id!=="tabOverview");
-  $("#viewAlunos").classList.toggle("hidden", id!=="tabAlunos");
-  $("#viewMedias").classList.toggle("hidden", id!=="tabMedias");
-}
-
-/* ========= INSIGHTS ========= */
-function makeInsightItem(html){
-  const d=document.createElement("div"); d.className="insight-item"; d.innerHTML=html; return d;
-}
-function renderInsights(){
-  const box = $("#insights"); box.innerHTML = "";
-  const tr = $("#selTrilha").value;
-  const mm = $("#selMes").value;
-
-  let ser = (tr===T_ALL) ? DATA.overall : (DATA.trilhas[tr]?.series || null);
-  if(!ser){
-    box.appendChild(makeInsightItem("Sem dados para o contexto atual."));
-    return;
-  }
-
-  const i = ser.meses.indexOf(mm);
-  const prev = i>0 ? i-1 : null;
-
-  const progNow = (i>=0 ? (ser.progMed[i] ?? 0) : 0);
-  const progPrev = (prev!=null ? (ser.progMed[prev] ?? null) : null);
-  const delta = (progPrev==null) ? null : (progNow - progPrev);
-
-  box.appendChild(makeInsightItem(
-    `<b>Tendência de progresso</b><span class="pill">${mm}</span><br>
-     Progresso médio ${progPrev==null ? "no período" : "vs mês anterior"}:
-     <b>${progNow.toFixed(1)}%</b> ${
-      delta==null ? "" :
-      (delta>0 ? `(<span style="color:var(--ok)">+${delta.toFixed(1)} p.p.</span>)` :
-       delta<0 ? `(<span style="color:var(--bad)">${delta.toFixed(1)} p.p.</span>)` :
-       "(estável)")}. ${
-      tr===T_ALL ? "Visão consolidada entre trilhas." : `Trilha: <b>${tr}</b>.`}`
-  ));
-
-  // Insight de nota média
-  const notaNow = computeAvgNota(tr, mm);
-  if(notaNow != null){
-    box.appendChild(makeInsightItem(
-      `<b>Nota média nas provas</b><span class="pill">${mm}</span><br>
-       Entre quem fez prova (${tr === T_ALL ? "todas as trilhas" : "trilha selecionada"}): 
-       <b>${notaNow.toFixed(1)}</b> pontos.`
-    ));
-  }
-}
-
-/* ========= RENDER ========= */
-function render(){
-  const tr = $("#selTrilha").value;
-  const mm = $("#selMes").value;
-  const acum = $("#chkAcum").checked;
-
-  let ser = null, top = [];
-  if (tr === T_ALL){
-    ser = DATA.overall;
-    top = DATA.overall_top_cursos || [];
-  } else {
-    ser = DATA.trilhas[tr]?.series || {meses:[],progMed:[],pontos:[],conclusoes:[],ativos:[]};
-    top = DATA.trilhas[tr]?.top_cursos_global || [];
-  }
-
-  const i = ser.meses.indexOf(mm);
-  const prev = i>0 ? i-1 : null;
-
-  const k = kpisFromSeries(ser, i, acum);
-  $("#k_mes").textContent = mm || "–";
-  $("#k_prog").textContent = `${(k.prog||0).toFixed(1)}%`;
-  $("#k_pts").textContent = (k.pts||0).toLocaleString("pt-BR");
-  $("#k_conc").textContent = (k.conc||0).toLocaleString("pt-BR");
-  $("#k_ativos").textContent = (k.atv||0).toLocaleString("pt-BR");
-  const prevK = (prev!=null) ? kpisFromSeries(ser, prev, acum) : null;
-  // setDelta("d_prog", k.prog, prev!=null? ser.progMed[prev]:null);
-  setDelta("d_pts",  k.pts,  prevK ? prevK.pts : null);
-  setDelta("d_conc", k.conc, prevK ? prevK.conc : null);
-  // setDelta("d_ativos", k.atv, prev!=null? (ser.ativos?ser.ativos[prev]:null):null);
-
-
-
-  // ----- NOTA MÉDIA (quem fez prova) -----
-  let notaCurr = 0;
-  let notaPrev = null;
-
-  if (ser && Array.isArray(ser.notaMedia)) {
-    if (i >= 0 && i < ser.notaMedia.length) {
-      notaCurr = Number(ser.notaMedia[i] ?? 0);
-    }
-    if (prev != null && prev >= 0 && prev < ser.notaMedia.length) {
-      notaPrev = Number(ser.notaMedia[prev]);
-    }
-  }
-
-  if (Number.isFinite(notaCurr) && (ser && Array.isArray(ser.notaMedia))) {
-    document.getElementById("k_nota").textContent = notaCurr.toFixed(1);
-  } else {
-    document.getElementById("k_nota").textContent = "–";
-  }
-
-  setDeltaNota("d_nota", notaCurr, notaPrev);
-
-
-  // GRÁFICOS
-  charts.prog?.destroy?.();
-  charts.pts?.destroy?.();
-
-  if(tr === T_ALL){
-    const trilhas = Object.keys(DATA.trilhas);
-    const vals = trilhas.map(name=>{
-      const s = DATA.trilhas[name]?.series;
-      const idx = s.meses.indexOf(mm);
-      return (idx>=0 ? (s.progMed[idx]||0) : 0);
-    });
-    charts.prog = barProgressSnapshot("c_prog", trilhas, vals);
-    $("#ttl_prog").textContent = "Progresso médio — mês selecionado (por trilha)";
-  }else{
-    const val = (i>=0 ? (ser.progMed[i]||0) : 0);
-    charts.prog = barProgressSnapshot("c_prog", [tr], [val]);
-    $("#ttl_prog").textContent = "Progresso médio — mês selecionado";
-  }
-
-  charts.pts = lineNoLimit("c_pts", ser.meses, acum ? prefixSum(ser.pontos) : ser.pontos, "Pontos");
-  $("#ttl_pts").textContent = acum ? "Pontos — mês a mês (acumulado)" : "Pontos — mês a mês";
-
-  // Top cursos
-  renderTable("#t_top", top, [
-    {key:"curso",             label:"Curso"},
-    {key:"alunos_liberados",  label:"Alunos (com acesso)",                  fmt:v=> (Number(v)||0).toLocaleString("pt-BR")},
-    {key:"progresso_medio",   label:"Progresso Médio (entre quem iniciou)", fmt:v=> fmtPctAllowText(v)},
-    {key:"pontos_total",      label:"Pontos (não manuais)",                 fmt:v=> (Number(v)||0).toLocaleString("pt-BR")},
-  ]);
-
-  renderInsights();
-  renderAlunos();
-  renderMedias();
-}
-
-/* === ALUNOS (linhas curso a curso) === */
-function renderAlunos(){
-  const tr = $("#selTrilha").value;
-  const mm = $("#selMes").value;
-  const q = ($("#qAluno").value || "").toLowerCase().trim();
-
-  const all = DATA.students?.[mm] || [];
-  let rows = all
-    .filter(r => tr===T_ALL ? true : r.trilha===tr)
-    .filter(r => !q || (String(r.aluno).toLowerCase().includes(q) || String(r.curso).toLowerCase().includes(q)));
-
-  // Pontos manuais agregados por aluno
-  const man = DATA.manuals?.[mm] || [];
-  const manByAluno = {};
-  for(const r of man){
-    manByAluno[r.aluno] = (manByAluno[r.aluno] || 0) + (Number(r.pontos_manua_mes) || 0);
-  }
-  for(const [aluno, pts] of Object.entries(manByAluno)){
-    if(pts <= 0) continue;
-    if(q && !String(aluno).toLowerCase().includes(q)) continue;
-    rows.push({
-      aluno,
-      trilha: "Não se aplica",
-      curso: "Pontos Manuais",
-      progresso: "Não se aplica",
-      nota_prova: "Não se aplica",
-      pontos_mes: Number(pts) || 0
-    });
-  }
-
-  rows.sort((a,b)=>{
-    const an = String(a.aluno).localeCompare(String(b.aluno));
-    if(an!==0) return an;
-    const tn = String(a.trilha).localeCompare(String(b.trilha));
-    if(tn!==0) return tn;
-    return String(a.curso).localeCompare(String(b.curso));
-  });
-
-  renderTable("#t_alunos", rows, [
-    {key:"aluno",     label:"Aluno"},
-    {key:"trilha",    label:"Trilha"},
-    {key:"curso",     label:"Curso"},
-    {key:"progresso", label:"Progresso do aluno no curso", fmt:(v,r)=> r.curso==="Pontos Manuais" ? "Não se aplica" : renderMiniBar(Number(v)||0)},
-    {key:"nota_prova",label:"Nota da prova", fmt:(v,r)=>{
-        if(r.curso==="Pontos Manuais") return "Não se aplica";
-        if(v === undefined || v === null || v==="") return "–";
-        const n = Number(v);
-        return Number.isFinite(n) ? String(n) : v; // mostra "Sem prova" / "Não realizado" como texto
-      }},
-    {key:"pontos_mes",label:"Pontos do mês (não manuais)", fmt:v=> (Number(v)||0).toLocaleString("pt-BR")}
-  ]);
-}
-
-/* === MÉDIAS POR TRILHA (Aluno × Trilha) === */
-function renderMedias(){
-  const trSel = $("#selTrilha").value;
-  const mm = $("#selMes").value;
-  const q = ($("#qMedia").value || "").toLowerCase().trim();
-  const all = (DATA.students?.[mm] || []).filter(r => r.curso && r.curso !== "Pontos Manuais");
-
-  const agg = {};
-  for(const r of all){
-    if (trSel !== T_ALL && r.trilha !== trSel) continue;
-    const prog = Number(r.progresso);
-    if (!Number.isFinite(prog)) continue;
-    const key = `${r.aluno}|||${r.trilha}`;
-    if(!agg[key]) agg[key] = { aluno:r.aluno, trilha:r.trilha, sum:0, n_total:0, n_init:0 };
-    agg[key].sum += Math.max(0, prog);
-    agg[key].n_total += 1;
-    if (prog > 0) agg[key].n_init += 1;
-  }
-
-  let rows = Object.values(agg).map(x => ({
-    aluno: x.aluno,
-    trilha: x.trilha,
-    cursos_iniciados: x.n_init,
-    cursos_total: x.n_total,
-    media_trilha: x.n_total ? (x.sum/x.n_total) : NaN
-  }));
-
-  rows = rows.filter(r => !q || String(r.aluno).toLowerCase().includes(q) || String(r.trilha).toLowerCase().includes(q));
-  rows.sort((a,b)=> String(a.aluno).localeCompare(String(b.aluno)) || String(a.trilha).localeCompare(String(b.trilha)));
-
-  renderTable("#t_medias", rows, [
-    {key:"aluno",            label:"Aluno"},
-    {key:"trilha",           label:"Trilha"},
-    {key:"cursos_iniciados", label:"Cursos com progresso (mês)", fmt:v=> (Number(v)||0).toLocaleString("pt-BR")},
-    {key:"cursos_total",     label:"Cursos na trilha (mês)",      fmt:v=> (Number(v)||0).toLocaleString("pt-BR")},
-    {key:"media_trilha",     label:"Progresso médio na trilha (mês, inclui 0%)", fmt:v=> Number.isFinite(v)? renderMiniBar(Number(v)) : "–"}
-  ]);
-}
-
-/* ========= wiring ========= */
-function wireTabs(){
-  $("#tabOverview").addEventListener("click", ()=> activateTab("tabOverview"));
-  $("#tabAlunos").addEventListener("click", ()=> activateTab("tabAlunos"));
-  $("#tabMedias").addEventListener("click", ()=> activateTab("tabMedias"));
-  $("#qAluno")?.addEventListener("input", renderAlunos);
-  $("#qMedia")?.addEventListener("input", renderMedias);
-}
-function wireFilters(){
-  ["selTrilha","selMes","chkAcum"].forEach(id=> $("#"+id).addEventListener("change", render));
-}
-
-/* ========= boot ========= */
-async function loadJSON(){
-  const res = await fetch("./data_trilhas.json",{cache:"no-store"});
-  if(!res.ok) throw new Error("Falha ao baixar JSON");
-  const data = await res.json();
-  DATA = data;
-  populateSelectors();
-  wireTabs();
-  wireFilters();
-  render();
-}
-document.addEventListener("DOMContentLoaded", ()=> {
-  loadJSON().catch(e=> alert("Falha ao carregar JSON: " + e.message));
-});
-</script>
+  <script src="./dashboard.js"></script>
 </body>
 </html>
